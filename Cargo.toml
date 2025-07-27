@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "src/escrow_canister_backend"
+]
+resolver = "2"

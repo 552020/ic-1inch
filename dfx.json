@@ -1,0 +1,27 @@
+{
+  "canisters": {
+    "escrow_canister_backend": {
+      "candid": "src/escrow_canister_backend/escrow_canister_backend.did",
+      "package": "escrow_canister_backend",
+      "type": "rust"
+    },
+    "escrow_canister_frontend": {
+      "dependencies": [
+        "escrow_canister_backend"
+      ],
+      "source": [
+        "src/escrow_canister_frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "escrow_canister_frontend"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
