@@ -1,9 +1,9 @@
-import { html, render } from 'lit-html';
-import { escrow_canister_backend } from 'declarations/escrow_canister_backend';
-import logo from './logo2.svg';
+import { html, render } from "lit-html";
+import { backend } from "declarations/backend";
+import logo from "./logo2.svg";
 
 class App {
-  greeting = '';
+  greeting = "";
 
   constructor() {
     this.#render();
@@ -11,8 +11,8 @@ class App {
 
   #handleSubmit = async (e) => {
     e.preventDefault();
-    const name = document.getElementById('name').value;
-    this.greeting = await escrow_canister_backend.greet(name);
+    const name = document.getElementById("name").value;
+    this.greeting = await backend.greet(name);
     this.#render();
   };
 
@@ -30,10 +30,8 @@ class App {
         <section id="greeting">${this.greeting}</section>
       </main>
     `;
-    render(body, document.getElementById('root'));
-    document
-      .querySelector('form')
-      .addEventListener('submit', this.#handleSubmit);
+    render(body, document.getElementById("root"));
+    document.querySelector("form").addEventListener("submit", this.#handleSubmit);
   }
 }
 

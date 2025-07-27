@@ -264,7 +264,7 @@ dfx deploy --network ic
 npm run generate
 
 # Check canister status
-dfx canister status escrow_canister_backend
+dfx canister status backend
 ```
 
 ### Running the project locally

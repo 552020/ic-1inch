@@ -1,19 +1,15 @@
 {
   "canisters": {
-    "escrow_canister_backend": {
-      "candid": "src/escrow_canister_backend/escrow_canister_backend.did",
-      "package": "escrow_canister_backend",
+    "backend": {
+      "candid": "src/backend/backend.did",
+      "package": "backend",
       "type": "rust"
     },
-    "escrow_canister_frontend": {
-      "dependencies": [
-        "escrow_canister_backend"
-      ],
-      "source": [
-        "src/escrow_canister_frontend/dist"
-      ],
+    "frontend": {
+      "dependencies": ["backend"],
+      "source": ["src/frontend/dist"],
       "type": "assets",
-      "workspace": "escrow_canister_frontend"
+      "workspace": "frontend"
     }
   },
   "defaults": {
