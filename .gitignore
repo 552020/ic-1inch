@@ -25,5 +25,5 @@ dist/
 # environment variables
 .env
 
-
+docs/
 secretus/
