@@ -1,12 +1,9 @@
 use candid::CandidType;
 use sha2::{Digest, Sha256};
 
-// TODO: Add unit tests and integration tests for hashlock verification
-// TODO: Add test cases for valid/invalid secrets, edge cases, etc.
+// TODO: Add integration tests for end-to-end escrow lifecycle when Step 4 is implemented
 
 // This module will contain escrow business logic functions
-// Re-export the safe memory functions
-pub use crate::memory::with_escrows;
 
 /// Verify that a preimage (secret) matches the expected hashlock
 ///
