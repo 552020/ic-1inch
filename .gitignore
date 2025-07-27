@@ -16,11 +16,13 @@
 
 # rust
 target/
+Cargo.lock
 
 # frontend code
 node_modules/
 dist/
 .svelte-kit/
+package-lock.json
 
 # environment variables
 .env
