@@ -1,1 +1,45 @@
-service : { greet : (text) -> (text) query }
+type CreateEscrowParams = record {
+  maker : principal;
+  hashlock : blob;
+  token_canister : principal;
+  amount : nat64;
+  timelock : nat64;
+};
+type Escrow = record {
+  id : text;
+  maker : principal;
+  updated_at : nat64;
+  hashlock : blob;
+  token_canister : principal;
+  created_at : nat64;
+  state : EscrowState;
+  amount : nat64;
+  timelock : nat64;
+};
+type EscrowError = variant {
+  InvalidAmount;
+  InsufficientBalance;
+  EscrowNotFound;
+  TimelockExpired;
+  Unauthorized;
+  InvalidTimelock;
+  InvalidHashlock;
+  TransferFailed;
+  TimelockNotExpired;
+  InvalidState;
+};
+type EscrowState = variant { Refunded; Claimed; Funded; Created; Expired };
+type Result = variant { Ok; Err : EscrowError };
+type Result_1 = variant { Ok : text; Err : EscrowError };
+type Result_2 = variant { Ok : Escrow; Err : EscrowError };
+type TimelockStatus = variant { Active; Expired };
+service : {
+  claim_escrow : (text, blob) -> (Result);
+  create_escrow : (CreateEscrowParams) -> (Result_1);
+  deposit_tokens : (text, nat64) -> (Result);
+  get_escrow_status : (text) -> (Result_2) query;
+  greet : (text) -> (text) query;
+  list_escrows : () -> (vec Escrow) query;
+  refund_escrow : (text) -> (Result);
+  test_timelock : (nat64) -> (TimelockStatus) query;
+}

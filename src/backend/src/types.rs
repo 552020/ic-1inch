@@ -7,8 +7,7 @@ pub struct CreateEscrowParams {
     pub timelock: u64,             // Nanoseconds since epoch
     pub token_canister: Principal, // ICRC-1 token canister ID
     pub amount: u64,               // Token amount in smallest unit
-    pub recipient: Principal,      // Token recipient on completion
-    pub depositor: Principal,      // Original token depositor
+    pub maker: Principal,          // Token maker (also the recipient)
 }
 
 #[derive(CandidType, Deserialize, Clone, Debug)]
@@ -18,8 +17,7 @@ pub struct Escrow {
     pub timelock: u64,
     pub token_canister: Principal,
     pub amount: u64,
-    pub recipient: Principal,
-    pub depositor: Principal,
+    pub maker: Principal, // Token maker (also the recipient)
     pub state: EscrowState,
     pub created_at: u64,
     pub updated_at: u64,

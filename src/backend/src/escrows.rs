@@ -1,11 +1,12 @@
 use sha2::{Sha256, Digest};
 use candid::CandidType;
 use ic_cdk::api::time;
+use ic_cdk::caller;
 use crate::types::{CreateEscrowParams, Escrow, EscrowState, EscrowError};
 
 // TODO: Add integration tests for end-to-end escrow lifecycle
 
-// This module will contain escrow business logic functions
+pub use crate::memory::with_escrows; // Re-export the safe memory function
 
 /// Verify that a preimage (secret) matches the expected hashlock
 /// 
@@ -58,19 +59,60 @@ pub fn validate_timelock(timelock: u64) -> Result<(), EscrowError> {
     Ok(())
 }
 
+/// Validate that the caller is authorized to create an escrow
+/// 
+/// Authorization rules:
+/// 1. Only authorized resolvers can create escrows (1inch Fusion+ model)
+/// 2. Makers cannot create escrows directly - they create intents
+/// 3. Resolvers create escrows on behalf of makers during execution
+pub fn validate_create_escrow_authorization(
+    caller: candid::Principal,
+) -> Result<(), EscrowError> {
+    // Only resolvers can create escrows
+    if is_authorized_resolver(caller) {
+        return Ok(());
+    }
+    
+    // Makers and other callers are unauthorized
+    Err(EscrowError::Unauthorized)
+}
+
+/// Check if a principal is an authorized resolver
+/// 
+/// TODO: In production, this should check against a maintained list
+/// of authorized resolvers or use a resolver registry
+pub fn is_authorized_resolver(_resolver: candid::Principal) -> bool {
+    // For MVP: Allow any resolver (insecure, but functional)
+    // In production: Check against authorized resolver list
+    true
+}
+
 /// Create a new escrow with the specified parameters
 /// 
 /// State Transition: None → Created
+/// 
+/// Authorization: Only authorized resolvers can create escrows
+/// (Makers create intents, resolvers create escrows during execution)
 pub async fn create_escrow(params: CreateEscrowParams) -> Result<String, EscrowError> {
+    // Get the caller's principal
+    let caller = caller();
+    
+    // Validate authorization
+    validate_create_escrow_authorization(caller)?;
+    
     // Validate parameters
-    if params.amount == 0 {
+    if params.amount <= 0 {
         return Err(EscrowError::InvalidAmount);
     }
+    
+
     
     // Validate timelock is in the future
     validate_timelock(params.timelock)?;
     
     // Generate unique escrow ID
+    // TODO: Replace with UUID for collision resistance
+    // let escrow_id = uuid::Uuid::new_v4().to_string();
     let escrow_id = format!("escrow_{}", time());
     
     // Create escrow
@@ -80,8 +122,7 @@ pub async fn create_escrow(params: CreateEscrowParams) -> Result<String, EscrowE
         timelock: params.timelock,
         token_canister: params.token_canister,
         amount: params.amount,
-        recipient: params.recipient,
-        depositor: params.depositor,
+        maker: params.maker,
         state: EscrowState::Created,
         created_at: time(),
         updated_at: time(),
@@ -113,7 +154,7 @@ pub async fn deposit_tokens(escrow_id: String, amount: u64) -> Result<(), Escrow
             return Err(EscrowError::InvalidAmount);
         }
         
-        // TODO: Verify caller is authorized (depositor or resolver)
+        // TODO: Verify caller is authorized (maker or resolver)
         // For MVP, allow anyone to deposit
         
         // Update escrow state
@@ -158,7 +199,7 @@ pub async fn claim_escrow(escrow_id: String, preimage: Vec<u8>) -> Result<(), Es
     })
 }
 
-/// Refund tokens to depositor after timelock expiration
+/// Refund tokens to maker after timelock expiration
 /// 
 /// State Transition: Funded → Refunded
 pub async fn refund_escrow(escrow_id: String) -> Result<(), EscrowError> {
@@ -180,7 +221,7 @@ pub async fn refund_escrow(escrow_id: String) -> Result<(), EscrowError> {
         escrow.state = EscrowState::Refunded;
         escrow.updated_at = time();
         
-        // TODO: Transfer tokens back to depositor via ICRC-1
+        // TODO: Transfer tokens back to maker via ICRC-1
         // For MVP, just update state
         
         Ok(())
