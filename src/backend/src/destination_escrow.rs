@@ -2,11 +2,9 @@ use sha2::{Sha256, Digest};
 use candid::CandidType;
 use ic_cdk::api::time;
 use ic_cdk::caller;
-use crate::types::{CreateEscrowParams, Escrow, EscrowState, EscrowError};
+use crate::types::{DestinationEscrow, EscrowState, EscrowError, TimelockStatus, Result, TimelockStatusResult};
 
-// TODO: Add integration tests for end-to-end escrow lifecycle
-
-pub use crate::memory::with_escrows; // Re-export the safe memory function
+pub use crate::memory::with_destination_escrows; // Re-export the safe memory function
 
 /// Verify that a preimage (secret) matches the expected hashlock
 /// 
@@ -16,19 +14,12 @@ pub use crate::memory::with_escrows; // Re-export the safe memory function
 /// 3. Compares it with the stored hashlock
 /// 4. Returns true if they match, false otherwise
 /// 
-/// This function is used when the maker reveals their secret to claim tokens.
+/// This function is used when the taker reveals their secret to claim tokens.
 pub fn verify_hashlock(preimage: &[u8], expected_hashlock: &[u8]) -> bool {
     let mut hasher = Sha256::new();
     hasher.update(preimage);
     let computed_hash = hasher.finalize();
     computed_hash.as_slice() == expected_hashlock
-}
-
-/// Timelock status for HTLC escrows
-#[derive(Debug, Clone, PartialEq, CandidType)]
-pub enum TimelockStatus {
-    Active,     // Timelock not expired
-    Expired,    // Timelock has expired
 }
 
 /// Get the current status of a timelock
@@ -49,7 +40,7 @@ pub fn get_timelock_status(timelock: u64) -> TimelockStatus {
 /// 
 /// This function ensures that escrows cannot be created with
 /// timelocks that have already expired.
-pub fn validate_timelock(timelock: u64) -> Result<(), EscrowError> {
+pub fn validate_timelock(timelock: u64) -> Result<()> {
     let current_time = time();
     
     if timelock <= current_time {
@@ -59,15 +50,15 @@ pub fn validate_timelock(timelock: u64) -> Result<(), EscrowError> {
     Ok(())
 }
 
-/// Validate that the caller is authorized to create an escrow
+/// Validate that the caller is authorized to create a destination escrow
 /// 
 /// Authorization rules:
-/// 1. Only authorized resolvers can create escrows (1inch Fusion+ model)
+/// 1. Only authorized resolvers can create destination escrows (1inch Fusion+ model)
 /// 2. Makers cannot create escrows directly - they create intents
 /// 3. Resolvers create escrows on behalf of makers during execution
-pub fn validate_create_escrow_authorization(
+pub fn validate_create_destination_escrow_authorization(
     caller: candid::Principal,
-) -> Result<(), EscrowError> {
+) -> Result<()> {
     // Only resolvers can create escrows
     if is_authorized_resolver(caller) {
         return Ok(());
@@ -87,60 +78,64 @@ pub fn is_authorized_resolver(_resolver: candid::Principal) -> bool {
     true
 }
 
-/// Create a new escrow with the specified parameters
+/// Create a new destination escrow with the specified parameters
 /// 
 /// State Transition: None → Created
 /// 
 /// Authorization: Only authorized resolvers can create escrows
 /// (Makers create intents, resolvers create escrows during execution)
-pub async fn create_escrow(params: CreateEscrowParams) -> Result<String, EscrowError> {
+pub async fn create_destination_escrow(
+    maker: candid::Principal,
+    taker: candid::Principal,
+    hashlock: Vec<u8>,
+    token_canister: candid::Principal,
+    amount: u64,
+    timelock: u64,
+) -> Result<String> {
     // Get the caller's principal
     let caller = caller();
     
     // Validate authorization
-    validate_create_escrow_authorization(caller)?;
+    validate_create_destination_escrow_authorization(caller)?;
     
     // Validate parameters
-    if params.amount <= 0 {
+    if amount <= 0 {
         return Err(EscrowError::InvalidAmount);
     }
     
-
-    
     // Validate timelock is in the future
-    validate_timelock(params.timelock)?;
+    validate_timelock(timelock)?;
     
     // Generate unique escrow ID
-    // TODO: Replace with UUID for collision resistance
-    // let escrow_id = uuid::Uuid::new_v4().to_string();
-    let escrow_id = format!("escrow_{}", time());
+    let escrow_id = format!("dst_escrow_{}", time());
     
-    // Create escrow
-    let escrow = Escrow {
+    // Create destination escrow
+    let escrow = DestinationEscrow {
         id: escrow_id.clone(),
-        hashlock: params.hashlock,
-        timelock: params.timelock,
-        token_canister: params.token_canister,
-        amount: params.amount,
-        maker: params.maker,
+        hashlock,
+        timelock,
+        token_canister,
+        amount,
+        maker,
+        taker,
         state: EscrowState::Created,
         created_at: time(),
         updated_at: time(),
     };
     
     // Store escrow
-    crate::memory::with_escrows(|escrows| {
+    crate::memory::with_destination_escrows(|escrows| {
         escrows.insert(escrow_id.clone(), escrow);
     });
     
     Ok(escrow_id)
 }
 
-/// Deposit tokens into an existing escrow
+/// Deposit tokens into an existing destination escrow
 /// 
 /// State Transition: Created → Funded
-pub async fn deposit_tokens(escrow_id: String, amount: u64) -> Result<(), EscrowError> {
-    crate::memory::with_escrows(|escrows| {
+pub async fn deposit_tokens_to_destination(escrow_id: String, amount: u64) -> Result<()> {
+    crate::memory::with_destination_escrows(|escrows| {
         let escrow = escrows.get_mut(&escrow_id)
             .ok_or(EscrowError::EscrowNotFound)?;
         
@@ -167,11 +162,13 @@ pub async fn deposit_tokens(escrow_id: String, amount: u64) -> Result<(), Escrow
     })
 }
 
-/// Claim tokens by revealing the secret preimage
+/// Claim tokens from destination escrow by revealing the secret preimage
 /// 
 /// State Transition: Funded → Claimed
-pub async fn claim_escrow(escrow_id: String, preimage: Vec<u8>) -> Result<(), EscrowError> {
-    crate::memory::with_escrows(|escrows| {
+/// 
+/// Authorization: Anyone with the secret can claim (public withdrawal)
+pub async fn claim_destination_escrow(escrow_id: String, preimage: Vec<u8>) -> Result<()> {
+    crate::memory::with_destination_escrows(|escrows| {
         let escrow = escrows.get_mut(&escrow_id)
             .ok_or(EscrowError::EscrowNotFound)?;
         
@@ -194,24 +191,31 @@ pub async fn claim_escrow(escrow_id: String, preimage: Vec<u8>) -> Result<(), Es
         escrow.state = EscrowState::Claimed;
         escrow.updated_at = time();
         
-        // TODO: Transfer tokens to recipient via ICRC-1
+        // TODO: Transfer tokens to maker via ICRC-1
         // For MVP, just update state
         
         Ok(())
     })
 }
 
-/// Refund tokens to maker after timelock expiration
+/// Refund tokens to taker after timelock expiration
 /// 
 /// State Transition: Funded → Refunded
-pub async fn refund_escrow(escrow_id: String) -> Result<(), EscrowError> {
-    crate::memory::with_escrows(|escrows| {
+/// 
+/// Authorization: Only taker can refund (gets safety deposit)
+pub async fn refund_destination_escrow(escrow_id: String) -> Result<()> {
+    crate::memory::with_destination_escrows(|escrows| {
         let escrow = escrows.get_mut(&escrow_id)
             .ok_or(EscrowError::EscrowNotFound)?;
         
         // Check escrow state
         if escrow.state != EscrowState::Funded {
             return Err(EscrowError::InvalidState);
+        }
+        
+        // Verify caller is taker
+        if caller() != escrow.taker {
+            return Err(EscrowError::Unauthorized);
         }
         
         // Check timelock has expired
@@ -223,25 +227,25 @@ pub async fn refund_escrow(escrow_id: String) -> Result<(), EscrowError> {
         escrow.state = EscrowState::Refunded;
         escrow.updated_at = time();
         
-        // TODO: Transfer tokens back to maker via ICRC-1
+        // TODO: Transfer tokens back to taker via ICRC-1
         // For MVP, just update state
         
         Ok(())
     })
 }
 
-/// Get the current status and details of an escrow
-pub fn get_escrow_status(escrow_id: String) -> Result<Escrow, EscrowError> {
-    crate::memory::with_escrows(|escrows| {
+/// Get the current status and details of a destination escrow
+pub fn get_destination_escrow_status(escrow_id: String) -> Result<DestinationEscrow> {
+    crate::memory::with_destination_escrows(|escrows| {
         escrows.get(&escrow_id)
             .cloned()
             .ok_or(EscrowError::EscrowNotFound)
     })
 }
 
-/// List all escrows (for debugging/testing)
-pub fn list_escrows() -> Vec<Escrow> {
-    crate::memory::with_escrows(|escrows| {
+/// List all destination escrows (for debugging/testing)
+pub fn list_destination_escrows() -> Vec<DestinationEscrow> {
+    crate::memory::with_destination_escrows(|escrows| {
         escrows.values().cloned().collect()
     })
-}
+} 

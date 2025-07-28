@@ -5,6 +5,7 @@ type CreateEscrowParams = record {
   amount : nat64;
   timelock : nat64;
 };
+
 type Escrow = record {
   id : text;
   maker : principal;
@@ -16,6 +17,33 @@ type Escrow = record {
   amount : nat64;
   timelock : nat64;
 };
+
+type SourceEscrow = record {
+  id : text;
+  maker : principal;
+  taker : principal;
+  updated_at : nat64;
+  hashlock : blob;
+  token_canister : principal;
+  created_at : nat64;
+  state : EscrowState;
+  amount : nat64;
+  timelock : nat64;
+};
+
+type DestinationEscrow = record {
+  id : text;
+  maker : principal;
+  taker : principal;
+  updated_at : nat64;
+  hashlock : blob;
+  token_canister : principal;
+  created_at : nat64;
+  state : EscrowState;
+  amount : nat64;
+  timelock : nat64;
+};
+
 type EscrowError = variant {
   InvalidAmount;
   InsufficientBalance;
@@ -27,13 +55,19 @@ type EscrowError = variant {
   TransferFailed;
   TimelockNotExpired;
   InvalidState;
+  InvalidEscrowType;
 };
+
 type EscrowState = variant { Refunded; Claimed; Funded; Created; Expired };
 type Result = variant { Ok; Err : EscrowError };
 type Result_1 = variant { Ok : text; Err : EscrowError };
 type Result_2 = variant { Ok : Escrow; Err : EscrowError };
+type SourceEscrowResult = variant { Ok : SourceEscrow; Err : EscrowError };
+type DestinationEscrowResult = variant { Ok : DestinationEscrow; Err : EscrowError };
 type TimelockStatus = variant { Active; Expired };
+
 service : {
+  // Legacy escrow functions (for backward compatibility)
   claim_escrow : (text, blob) -> (Result);
   create_escrow : (CreateEscrowParams) -> (Result_1);
   deposit_tokens : (text, nat64) -> (Result);
@@ -42,4 +76,20 @@ service : {
   list_escrows : () -> (vec Escrow) query;
   refund_escrow : (text) -> (Result);
   test_timelock : (nat64) -> (TimelockStatus) query;
+  
+  // Source escrow functions
+  create_source_escrow : (principal, principal, blob, principal, nat64, nat64) -> (Result_1);
+  deposit_tokens_to_source : (text, nat64) -> (Result);
+  claim_source_escrow : (text, blob) -> (Result);
+  refund_source_escrow : (text) -> (Result);
+  get_source_escrow_status : (text) -> (SourceEscrowResult) query;
+  list_source_escrows : () -> (vec SourceEscrow) query;
+  
+  // Destination escrow functions
+  create_destination_escrow : (principal, principal, blob, principal, nat64, nat64) -> (Result_1);
+  deposit_tokens_to_destination : (text, nat64) -> (Result);
+  claim_destination_escrow : (text, blob) -> (Result);
+  refund_destination_escrow : (text) -> (Result);
+  get_destination_escrow_status : (text) -> (DestinationEscrowResult) query;
+  list_destination_escrows : () -> (vec DestinationEscrow) query;
 }
