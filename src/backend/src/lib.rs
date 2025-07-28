@@ -1,11 +1,16 @@
-mod escrows;
-mod source_escrow;
 mod destination_escrow;
+mod escrows;
+mod limit_orders;
 mod memory;
+#[cfg(test)]
+mod mock_icrc1_token;
+mod source_escrow;
+#[cfg(test)]
+mod test_utils;
 mod types;
 
 use escrows::{get_timelock_status, TimelockStatus};
-use types::{CreateEscrowParams, Escrow, EscrowError, SourceEscrow, DestinationEscrow};
+use types::{CreateEscrowParams, DestinationEscrow, Escrow, EscrowError, SourceEscrow};
 
 // Keep the hello world function for testing
 #[ic_cdk::query]
@@ -69,7 +74,8 @@ async fn create_source_escrow(
     amount: u64,
     timelock: u64,
 ) -> Result<String, EscrowError> {
-    source_escrow::create_source_escrow(maker, taker, hashlock, token_canister, amount, timelock).await
+    source_escrow::create_source_escrow(maker, taker, hashlock, token_canister, amount, timelock)
+        .await
 }
 
 /// Deposit tokens to source escrow - Used by: Resolver
@@ -114,7 +120,15 @@ async fn create_destination_escrow(
     amount: u64,
     timelock: u64,
 ) -> Result<String, EscrowError> {
-    destination_escrow::create_destination_escrow(maker, taker, hashlock, token_canister, amount, timelock).await
+    destination_escrow::create_destination_escrow(
+        maker,
+        taker,
+        hashlock,
+        token_canister,
+        amount,
+        timelock,
+    )
+    .await
 }
 
 /// Deposit tokens to destination escrow - Used by: Resolver
