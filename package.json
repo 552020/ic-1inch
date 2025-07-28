@@ -1,18 +1,88 @@
 {
-  "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=7.0.0"
+  "name": "ICP 1inch Fusion+ Extension",
+  "version": "0.1.0",
+  "description": "ICP 1inch Fusion+ Extension",
+  "author": "SLD_UNIC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/ic-1inch-limit-order-protocol"
   },
-  "name": "escrow_canister",
-  "scripts": {
-    "build": "npm run build --workspaces --if-present",
-    "prebuild": "npm run prebuild --workspaces --if-present",
-    "pretest": "npm run prebuild --workspaces --if-present",
-    "start": "npm start --workspaces --if-present",
-    "test": "npm test --workspaces --if-present"
+  "keywords": [
+    "dfinity",
+    "ic",
+    "internet computer",
+    "limit orders",
+    "1inch",
+    "defi",
+    "trading",
+    "chainfusion",
+    "icrc-1",
+    "icrc-2",
+    "rust",
+    "react",
+    "typescript"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   },
   "type": "module",
-  "workspaces": [
-    "src/frontend"
-  ]
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "prebuild": "npm run generate-candid",
+    "pretest": "npm run prebuild",
+    "start": "vite",
+    "test": "npm run test-all",
+    "lint": "eslint ./src/frontend/src",
+    "preview": "vite preview",
+    "generate-candid": "./scripts/generate_declarations.sh",
+    "candid": "./scripts/generate_declarations.sh",
+    "test-limit-orders": "./scripts/test-limit-orders.sh",
+    "test-limit-order-errors": "./scripts/test-limit-order-errors.sh",
+    "test-all": "./scripts/run-all-tests.sh",
+    "deploy": "dfx deploy",
+    "deploy-local": "dfx deploy --network local",
+    "canister-logs": "dfx canister logs backend"
+  },
+  "dependencies": {
+    "@dfinity/agent": "^2.2.0",
+    "@dfinity/candid": "^2.2.0",
+    "@dfinity/identity": "^2.2.0",
+    "@dfinity/principal": "^2.2.0",
+    "@radix-ui/react-dialog": "^1.1.5",
+    "@radix-ui/react-slot": "^1.1.1",
+    "@radix-ui/react-toast": "^1.2.5",
+    "@tanstack/react-query": "^5.83.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.474.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.6.0",
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "@types/node": "^22.10.10",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react-swc": "^3.5.0",
+    "autoprefixer": "^10.4.20",
+    "dotenv": "^16.3.1",
+    "eslint": "^9.15.0",
+    "eslint-plugin-react": "^7.37.4",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "eslint-plugin-react-refresh": "^0.4.14",
+    "globals": "^15.12.0",
+    "postcss": "^8.5.1",
+    "tailwindcss": "3.4.17",
+    "typescript": "^5.6.2",
+    "typescript-eslint": "^8.15.0",
+    "vite": "^6.0.1",
+    "vite-plugin-environment": "^1.1.3",
+    "vite-plugin-top-level-await": "^1.4.4",
+    "vite-plugin-wasm": "^3.4.1"
+  }
 }
