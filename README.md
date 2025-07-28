@@ -16,8 +16,8 @@ This project addresses the **"Extend Fusion+ to ICP"** challenge by **building a
 
 ### Qualification Requirements (Mandatory)
 
-- [ ] **Preserve hashlock and timelock functionality** for the non-EVM implementation
-- [ ] **Swap functionality should be bidirectional** (swaps should be possible to and from Ethereum)
+- [x] **Preserve hashlock and timelock functionality** for the non-EVM implementation
+- [x] **Swap functionality should be bidirectional** (swaps should be possible to and from Ethereum)
 - [ ] **Onchain (mainnet or testnet) execution** of token transfers should be presented during the final demo
 
 ### Stretch Goals (Not Hard Requirements)
@@ -29,8 +29,6 @@ This project addresses the **"Extend Fusion+ to ICP"** challenge by **building a
 ---
 
 ## Challenge Explained
-
-[Explain better]
 
 **Why This Is Needed:**
 
@@ -77,41 +75,102 @@ Cross-chain systems require users to trust various components. This section expl
 
 ---
 
-## Architecture
+## Architecture - 1inch Fusion Atomic Swaps Flow
 
+## Overview
+
+This document illustrates the complete flow of 1inch Fusion atomic swaps across different entities and phases, showing both off-chain calls and on-chain transactions.
+
+## Participants
+
+- **Maker**: Initiates the swap
+- **Escrow A (Source Chain)**: Escrow service on the source blockchain
+- **Relayer**: Facilitates communication and order sharing (in our case: 1inch Fusion+)
+- **Escrow B (Destination Chain)**: Escrow service on the destination blockchain
+- **Taker (Resolver)**: The counterparty completing the swap
+
+## Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant M as Maker
+    participant EA as Escrow A<br/>(Source Chain)
+    participant R as Relayer<br/>(1inch Fusion+)
+    participant EB as Escrow B<br/>(Destination Chain)
+    participant T as Taker<br/>(Resolver)
+
+    Note over M,T: Phase 1: Announcement Phase
+    M->>R: (1) shares signed 1inch Fusion order (off-chain)
+    R->>T: (2) shares 1inch Fusion order (off-chain)
+
+    Note over M,T: Phase 2: Depositing Phase
+    T->>EA: (3) deposits with hash via fusion atomic swap order (on-chain)
+    T->>EB: (4) deposits with hash (on-chain)
+
+    Note over M,T: Phase 3: Withdrawal Phase
+    R->>M: (5) The relayer signals to the maker, that it is safe to share the secrets (off-chain)
+    M->>R: (5) shares encrypted secrets (off-chain)
+    R->>T: (5) shares encrypted secret (off-chain)
+    T->>EB: (6) withdraw for Maker (on-chain)
+    T->>EA: (7) withdraw for Taker (on-chain)
+
+    Note over M,T: Phase 4: Recovery Phase (Optional)
+    T->>EB: (8) cancel for Maker (on-chain)
+    T->>EA: (9) cancel for Taker (on-chain)
 ```
-Maker (1inch UI)
-↓
-Fusion+ Order (EIP-712)
-↓
-Resolver (manual)
-├── Monitor order on 1inch API
-├── Create ETH escrow on Sepolia (1inch)
-└── Create ICP escrow via Rust canister
-├── Accept ICRC-1 deposit
-├── Lock with hash & timeout
-├── Validate secret (on withdrawal)
-└── Refund after timeout
-```
+
+## Phase Details
+
+### Phase 1: Announcement Phase
+
+- **Off-chain calls**
+- (1) Maker creates and signs a 1inch Fusion order and shares it with the Relayer (1inch infra)
+- (2) Order is shared through the relayer to potential takers (resolvers)
+
+### Phase 2: Depositing Phase
+
+- **On-chain transactions**
+- (3) Taker deposits assets into source chain escrow with hashlock
+- (4) Taker deposits assets into destination chain escrow with same hashlock
+- Both escrows are now funded and waiting for secret revelation
+
+### Phase 3: Withdrawal Phase
+
+- **Mixed off-chain and on-chain activity**
+- (5) The relayer signals to the maker that it safe to to shares encrypted secrets via relayer
+- (5) Maker shares encrypted secrets with the relayer
+- (5) The relayer shared the enctypted secret of maker with the taker.
+- Atomic swap is completed
+
+### Phase 4: Recovery Phase (Optional)
+
+- **On-chain transactions** (teal arrows in original)
+- If timelock expires without completion, either party can cancel
+- Assets are returned to their original owners
+- Used only if normal withdrawal fails
+
+**Source**: Based on 1inch Fusion+ protocol documentation --> https://help.1inch.io/en/articles/9842591-what-is-1inch-fusion-and-how-does-it-work#h_c2aa86c7b0
 
 ---
 
 ## Tech Stack
 
-| Component                | Tech                         |
-| ------------------------ | ---------------------------- |
-| ICP Canister             | Rust + `ic-cdk` + `candid`   |
-| Token Support            | ICRC-1 standard              |
-| Timers / Refund Logic    | Canister global timer API    |
-| Cross-chain Verification | HTTP outcalls + Ethereum RPC |
-| CLI Resolver Script      | Typescript / Node.js         |
-| Ethereum Testnet         | Sepolia + 1inch Fusion+      |
-
----
+- [ ] **ICP Canister** - Rust + `ic-cdk` + `candid`
+- [ ] **Token Support** - ICRC-1 standard
+- [ ] **Timers / Refund Logic** - Canister global timer API
+- [ ] **Cross-chain Verification** - HTTP outcalls + Ethereum RPC
+- [ ] **CLI Resolver Script** - Typescript / Node.js
+- [ ] **Ethereum Testnet** - Sepolia + 1inch Fusion+
 
 ---
 
 ## Testing & Demo Instructions
+
+There is a script test folder with some testing (that will change). Eventually you could find a README in the folder for a correct execution.
+
+### Demo Flow
+
+**TO IMPLEMENT:**
 
 1. **Generate a signed order** on 1inch Fusion+ (Sepolia)
 2. **Run manual resolver CLI** to:
@@ -220,12 +279,6 @@ Demo tokens are pre-distributed to simplify testing.
 
 ---
 
----
-
-## 🏁 Final Notes
-
-This project showcases **cross-chain composability** by bridging ICP and Ethereum through existing DeFi infrastructure. It’s a foundational step for building more robust relayer systems and privacy-preserving bridges in the future.
-
 ## Development Setup
 
 ### Prerequisites
@@ -307,3 +360,9 @@ If you are hosting frontend code somewhere without using DFX, you may need to ma
 - Write your own `createActor` constructor
 
 For more information, see the [ICP Developer Documentation](https://internetcomputer.org/docs/current/developer-docs/).
+
+---
+
+## 🏁 Final Notes
+
+This project showcases **cross-chain composability** by bridging ICP and Ethereum through existing DeFi infrastructure. It's a foundational step for building more robust relayer systems and privacy-preserving bridges in the future.
