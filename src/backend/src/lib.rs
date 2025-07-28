@@ -11,6 +11,7 @@ mod types;
 
 use escrows::{get_timelock_status, TimelockStatus};
 use types::{CreateEscrowParams, DestinationEscrow, Escrow, EscrowError, SourceEscrow};
+use types::{Order, OrderError, OrderId, SystemStats};
 
 // Keep the hello world function for testing
 #[ic_cdk::query]
@@ -159,6 +160,76 @@ fn get_destination_escrow_status(escrow_id: String) -> Result<DestinationEscrow,
 #[ic_cdk::query]
 fn list_destination_escrows() -> Vec<DestinationEscrow> {
     destination_escrow::list_destination_escrows()
+}
+
+// Limit Order Protocol functions
+
+/// Create a new limit order - Used by: Makers
+#[ic_cdk::update]
+async fn create_order(
+    receiver: candid::Principal,
+    maker_asset: candid::Principal,
+    taker_asset: candid::Principal,
+    making_amount: u64,
+    taking_amount: u64,
+    expiration: u64,
+    allowed_taker: Option<candid::Principal>,
+) -> Result<OrderId, OrderError> {
+    limit_orders::create_order(
+        receiver,
+        maker_asset,
+        taker_asset,
+        making_amount,
+        taking_amount,
+        expiration,
+        allowed_taker,
+    )
+    .await
+}
+
+/// Fill an existing limit order - Used by: Takers/Resolvers
+#[ic_cdk::update]
+async fn fill_order(order_id: OrderId) -> Result<(), OrderError> {
+    limit_orders::fill_order(order_id).await
+}
+
+/// Cancel an existing limit order - Used by: Makers
+#[ic_cdk::update]
+fn cancel_order(order_id: OrderId) -> Result<(), OrderError> {
+    limit_orders::cancel_order(order_id)
+}
+
+/// Get all active orders - Used by: Takers/Frontend
+#[ic_cdk::query]
+fn get_active_orders() -> Vec<Order> {
+    limit_orders::get_active_orders_list()
+}
+
+/// Get a specific order by ID - Used by: Frontend/Users
+#[ic_cdk::query]
+fn get_order(order_id: OrderId) -> Option<Order> {
+    limit_orders::get_order_by_id(order_id)
+}
+
+/// Get orders created by a specific maker - Used by: Frontend/Makers
+#[ic_cdk::query]
+fn get_orders_by_maker(maker: candid::Principal) -> Vec<Order> {
+    limit_orders::get_orders_by_maker(maker)
+}
+
+/// Get orders for a specific asset pair - Used by: Frontend/Traders
+#[ic_cdk::query]
+fn get_orders_by_asset_pair(
+    maker_asset: candid::Principal,
+    taker_asset: candid::Principal,
+) -> Vec<Order> {
+    limit_orders::get_orders_by_asset_pair(maker_asset, taker_asset)
+}
+
+/// Get system statistics - Used by: Frontend/Monitoring
+#[ic_cdk::query]
+fn get_system_stats() -> SystemStats {
+    limit_orders::get_system_statistics()
 }
 
 ic_cdk::export_candid!();
