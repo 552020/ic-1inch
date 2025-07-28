@@ -4,14 +4,23 @@ import { backend } from "../../declarations/backend";
 function App() {
   const [greeting, setGreeting] = useState("");
   const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError(null);
     try {
       const result = await backend.greet(name);
       setGreeting(result);
-    } catch (error) {
-      console.error("Error calling backend:", error);
+    } catch (err) {
+      console.error("Error calling backend:", err);
+      setError(
+        "Failed to connect to backend. Make sure dfx is running and deployed."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -24,6 +33,12 @@ function App() {
         <p className="text-gray-600 mb-8">
           MVP Implementation on Internet Computer
         </p>
+
+        {error && (
+          <div className="mb-8 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
+          </div>
+        )}
 
         <form
           onSubmit={(e) => {
@@ -44,13 +59,15 @@ function App() {
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Your name"
+              disabled={loading}
             />
           </div>
           <button
             type="submit"
-            className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={loading}
+            className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           >
-            Greet
+            {loading ? "Loading..." : "Greet"}
           </button>
         </form>
 
