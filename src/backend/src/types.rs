@@ -1,5 +1,5 @@
 use candid::{CandidType, Deserialize, Principal};
-use serde::{Deserialize as SerdeDeserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(CandidType, Deserialize, Clone, Debug)]
 pub struct CreateEscrowParams {
@@ -76,7 +76,7 @@ pub enum EscrowError {
     InvalidEscrowType,
 }
 
-#[derive(CandidType, Deserialize, Clone, Debug)]
+#[derive(CandidType, Deserialize, Clone, Debug, PartialEq)]
 pub enum TimelockStatus {
     Active,  // Timelock not expired
     Expired, // Timelock has expired
@@ -105,5 +105,213 @@ impl std::fmt::Display for EscrowError {
             EscrowError::InvalidTimelock => write!(f, "Invalid timelock"),
             EscrowError::InvalidEscrowType => write!(f, "Invalid escrow type"),
         }
+    }
+}
+// ============================================================================
+// LIMIT ORDER PROTOCOL TYPES
+// ============================================================================
+
+/// Unique identifier for limit orders
+pub type OrderId = u64;
+
+/// System constants for limit order protocol
+pub const MAX_ACTIVE_ORDERS: usize = 10_000;
+pub const MAX_HISTORICAL_ORDERS: usize = 100_000;
+pub const MAX_EXPIRATION_DAYS: u64 = 30;
+
+/// Core limit order structure
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub struct Order {
+    pub id: OrderId,
+    pub maker: Principal,
+    pub receiver: Principal,    // Can be different from maker
+    pub maker_asset: Principal, // ICRC token canister ID
+    pub taker_asset: Principal, // ICRC token canister ID
+    pub making_amount: u64,
+    pub taking_amount: u64,
+    pub expiration: u64, // Nanoseconds since epoch
+    pub created_at: u64,
+    pub allowed_taker: Option<Principal>, // Private orders
+
+    // Extension fields for future ChainFusion+ compatibility
+    pub metadata: Option<OrderMetadata>,
+}
+
+/// Optional metadata for future cross-chain functionality
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub struct OrderMetadata {
+    // Reserved for future cross-chain fields
+    pub hashlock: Option<Vec<u8>>,
+    pub timelock: Option<u64>,
+    pub target_chain: Option<String>,
+}
+
+/// Order state enumeration
+#[derive(CandidType, Deserialize, Clone, Debug, PartialEq)]
+pub enum OrderState {
+    Active,    // Order is available for filling
+    Filled,    // Order has been completely filled
+    Cancelled, // Order has been cancelled by maker
+    Expired,   // Order has passed expiration time
+}
+
+/// Comprehensive error types for limit order operations
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub enum OrderError {
+    // Validation Errors
+    InvalidAmount,
+    InvalidExpiration,
+    InvalidAssetPair,
+
+    // State Errors
+    OrderNotFound,
+    OrderAlreadyFilled,
+    OrderCancelled,
+    OrderExpired,
+
+    // Authorization Errors
+    Unauthorized,
+    InsufficientBalance,
+
+    // Token Integration Errors
+    TokenCallFailed(String),
+    TransferFailed(String),
+
+    // System Errors
+    SystemError(String),
+}
+
+/// System statistics for monitoring
+#[derive(CandidType, Deserialize, Clone, Debug, Default)]
+pub struct SystemStats {
+    pub orders_created: u64,
+    pub orders_filled: u64,
+    pub orders_cancelled: u64,
+    pub total_volume: HashMap<Principal, u64>, // Per token
+    pub error_counts: HashMap<String, u64>,    // Error frequency tracking
+}
+
+/// Parameters for creating a new limit order
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub struct CreateOrderParams {
+    pub receiver: Principal,
+    pub maker_asset: Principal,
+    pub taker_asset: Principal,
+    pub making_amount: u64,
+    pub taking_amount: u64,
+    pub expiration: u64,
+    pub allowed_taker: Option<Principal>,
+}
+
+// Result types for limit order operations
+pub type OrderResult<T> = std::result::Result<T, OrderError>;
+pub type OrderQueryResult = OrderResult<Order>;
+pub type OrderIdResult = OrderResult<OrderId>;
+pub type OrderListResult = OrderResult<Vec<Order>>;
+pub type SystemStatsResult = OrderResult<SystemStats>;
+
+impl std::fmt::Display for OrderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            OrderError::InvalidAmount => write!(f, "Amount must be greater than zero"),
+            OrderError::InvalidExpiration => write!(f, "Expiration must be in the future"),
+            OrderError::InvalidAssetPair => write!(f, "Maker and taker assets cannot be the same"),
+            OrderError::OrderNotFound => write!(f, "Order not found"),
+            OrderError::OrderAlreadyFilled => write!(f, "Order has already been filled"),
+            OrderError::OrderCancelled => write!(f, "Order has been cancelled"),
+            OrderError::OrderExpired => write!(f, "Order has expired"),
+            OrderError::Unauthorized => write!(f, "Unauthorized to perform this operation"),
+            OrderError::InsufficientBalance => write!(f, "Insufficient token balance"),
+            OrderError::TokenCallFailed(msg) => write!(f, "Token canister call failed: {}", msg),
+            OrderError::TransferFailed(msg) => write!(f, "Token transfer failed: {}", msg),
+            OrderError::SystemError(msg) => write!(f, "System error: {}", msg),
+        }
+    }
+}
+
+impl Order {
+    /// Get the current state of the order based on global state and expiration
+    pub fn get_state(
+        &self,
+        filled_orders: &std::collections::HashSet<OrderId>,
+        cancelled_orders: &std::collections::HashSet<OrderId>,
+    ) -> OrderState {
+        let current_time = ic_cdk::api::time();
+
+        // Check expiration first
+        if self.expiration <= current_time {
+            return OrderState::Expired;
+        }
+
+        // Check if filled
+        if filled_orders.contains(&self.id) {
+            return OrderState::Filled;
+        }
+
+        // Check if cancelled
+        if cancelled_orders.contains(&self.id) {
+            return OrderState::Cancelled;
+        }
+
+        OrderState::Active
+    }
+
+    /// Check if the order is active (not filled, cancelled, or expired)
+    pub fn is_active(
+        &self,
+        filled_orders: &std::collections::HashSet<OrderId>,
+        cancelled_orders: &std::collections::HashSet<OrderId>,
+    ) -> bool {
+        self.get_state(filled_orders, cancelled_orders) == OrderState::Active
+    }
+
+    /// Validate order parameters
+    pub fn validate(&self) -> OrderResult<()> {
+        // Amount validation
+        if self.making_amount == 0 || self.taking_amount == 0 {
+            return Err(OrderError::InvalidAmount);
+        }
+
+        // Asset pair validation
+        if self.maker_asset == self.taker_asset {
+            return Err(OrderError::InvalidAssetPair);
+        }
+
+        // Expiration validation
+        let current_time = ic_cdk::api::time();
+        if self.expiration <= current_time {
+            return Err(OrderError::InvalidExpiration);
+        }
+
+        // Maximum expiration validation (30 days)
+        let max_expiration = current_time + (MAX_EXPIRATION_DAYS * 24 * 3600 * 1_000_000_000);
+        if self.expiration > max_expiration {
+            return Err(OrderError::InvalidExpiration);
+        }
+
+        Ok(())
+    }
+}
+
+impl SystemStats {
+    /// Increment order creation counter
+    pub fn increment_orders_created(&mut self) {
+        self.orders_created += 1;
+    }
+
+    /// Increment order filled counter and update volume
+    pub fn increment_orders_filled(&mut self, token: Principal, volume: u64) {
+        self.orders_filled += 1;
+        *self.total_volume.entry(token).or_insert(0) += volume;
+    }
+
+    /// Increment order cancelled counter
+    pub fn increment_orders_cancelled(&mut self) {
+        self.orders_cancelled += 1;
+    }
+
+    /// Track error occurrence
+    pub fn track_error(&mut self, error_type: &str) {
+        *self.error_counts.entry(error_type.to_string()).or_insert(0) += 1;
     }
 }
