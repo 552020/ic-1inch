@@ -27,5 +27,5 @@ package-lock.json
 # environment variables
 .env
 
-docs/
+internal/
 secretus/
