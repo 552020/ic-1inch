@@ -13,17 +13,17 @@ use std::str::FromStr;
 pub struct OrderTestFixtures;
 
 impl OrderTestFixtures {
-    /// Generate test principals
+    /// Generate test principals (using valid principals)
     pub fn test_principals() -> (Principal, Principal) {
-        let maker = Principal::from_str("rdmx6-jaaaa-aaaah-qcaiq-cai").unwrap();
-        let taker = Principal::from_str("ryjl3-tyaaa-aaaah-qcaiq-cai").unwrap();
+        let maker = Principal::management_canister(); // Valid management canister principal
+        let taker = Principal::from_slice(&[0, 0, 0, 0, 1, 1, 1, 1]).unwrap(); // Valid generated principal
         (maker, taker)
     }
 
-    /// Generate test token canisters
+    /// Generate test token canisters (using valid principals that are different)
     pub fn test_token_canisters() -> (Principal, Principal) {
-        let token_a = Principal::from_str("rrkah-fqaaa-aaaah-qcaiq-cai").unwrap();
-        let token_b = Principal::from_str("ryjl3-tyaaa-aaaah-qcaiq-cai").unwrap();
+        let token_a = Principal::management_canister(); // Management canister as token A
+        let token_b = Principal::from_slice(&[1, 1, 1, 1, 0, 0, 0, 0]).unwrap(); // Different valid principal for token B
         (token_a, token_b)
     }
 
