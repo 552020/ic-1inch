@@ -8,6 +8,8 @@ Step-by-step instructions for manually testing the ICP Limit Order Protocol MVP.
 
 **Note:** This guide uses two test tokens (`test_token_a` and `test_token_b`) for local testing instead of ICP, since the ICP ledger is not available on the local testnet. This allows full testing of the limit order functionality without requiring external dependencies.
 
+**Important:** This implementation uses ICRC-2 tokens which require explicit approval before transfers. Both the maker and taker must approve the backend canister to spend their tokens before orders can be filled. This is a crucial step that must be completed for successful order execution.
+
 # Prerequisites
 
 ## Setup Instructions
@@ -85,7 +87,32 @@ dfx canister call backend create_order "(
 
 **Expected Result:** `(variant { Ok = 1 : nat64 })` (Order ID 1 created)
 
-#### Step 1.3: Verify Order was Created
+#### Step 1.3: Approve Backend Canister to Spend Maker's Tokens
+
+```bash
+# The maker needs to approve the backend canister to spend their TOKEN_A tokens
+# This is required for ICRC-2 tokens (approve/transfer_from pattern)
+dfx canister call test_token_a icrc2_approve "(record {
+  from_subaccount = null;
+  spender = record { owner = principal \"$BACKEND_CANISTER_ID\"; subaccount = null };
+  amount = 1000000000000:nat;
+  expires_at = null;
+  fee = null;
+  memo = null;
+  created_at_time = null;
+})"
+
+# Verify the approval was set
+echo "Maker's TOKEN_A allowance for backend:"
+dfx canister call test_token_a icrc2_allowance "(record {
+  account = record { owner = principal \"$MAKER_PRINCIPAL\"; subaccount = null };
+  spender = record { owner = principal \"$BACKEND_CANISTER_ID\"; subaccount = null };
+})"
+```
+
+**Expected Result:** Approval should return `(variant { Ok = 1 : nat64 })` and allowance should show the approved amount.
+
+#### Step 1.4: Verify Order was Created
 
 ```bash
 # Get order details
@@ -196,7 +223,56 @@ dfx canister call backend get_active_orders '()'
 
 **Expected Result:** Should see the order created in Scenario 1
 
-#### Step 2.4: Check Balances Before Fill
+#### Step 2.4: Approve Backend Canister to Spend Taker's Tokens
+
+```bash
+# The taker needs to approve the backend canister to spend their TOKEN_B tokens
+# This is required for ICRC-2 tokens (approve/transfer_from pattern)
+dfx canister call test_token_b icrc2_approve "(record {
+  from_subaccount = null;
+  spender = record { owner = principal \"$BACKEND_CANISTER_ID\"; subaccount = null };
+  amount = 1000000000000:nat;
+  expires_at = null;
+  fee = null;
+  memo = null;
+  created_at_time = null;
+})"
+
+# Also approve the backend canister to spend taker's TOKEN_A tokens (for receiving)
+dfx canister call test_token_a icrc2_approve "(record {
+  from_subaccount = null;
+  spender = record { owner = principal \"$BACKEND_CANISTER_ID\"; subaccount = null };
+  amount = 1000000000000:nat;
+  expires_at = null;
+  fee = null;
+  memo = null;
+  created_at_time = null;
+})"
+
+# Verify the approvals were set
+echo "Taker's TOKEN_B allowance for backend:"
+dfx canister call test_token_b icrc2_allowance "(record {
+  account = record { owner = principal \"$TAKER_PRINCIPAL\"; subaccount = null };
+  spender = record { owner = principal \"$BACKEND_CANISTER_ID\"; subaccount = null };
+})"
+
+echo "Taker's TOKEN_A allowance for backend:"
+dfx canister call test_token_a icrc2_allowance "(record {
+  account = record { owner = principal \"$TAKER_PRINCIPAL\"; subaccount = null };
+  spender = record { owner = principal \"$BACKEND_CANISTER_ID\"; subaccount = null };
+})"
+```
+
+**Expected Result:** Both approvals should return `(variant { Ok = 1 : nat64 })` and allowances should show the approved amounts.
+
+**Troubleshooting:** If you get `InsufficientAllowance` errors when filling orders, ensure that:
+
+1. The maker has approved the backend canister to spend their TOKEN_A tokens
+2. The taker has approved the backend canister to spend their TOKEN_B tokens
+3. The taker has also approved the backend canister to spend their TOKEN_A tokens (for receiving tokens)
+4. All approvals have sufficient amounts (recommend using large amounts like 1,000,000,000,000 for testing)
+
+#### Step 2.5: Check Balances Before Fill
 
 ```bash
 # Check balances before filling the order
@@ -211,7 +287,7 @@ echo "Taker TOKEN_A Balance (what they'll receive):"
 dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$TAKER_PRINCIPAL\" })"
 ```
 
-#### Step 2.5: Fill the Order
+#### Step 2.6: Fill the Order
 
 ```bash
 # Fill order ID 1
@@ -220,7 +296,7 @@ dfx canister call backend fill_order '(1: nat64)'
 
 **Expected Result:** `(variant { Ok })`
 
-#### Step 2.6: Check Balances After Fill
+#### Step 2.7: Check Balances After Fill
 
 ```bash
 # Check balances after filling the order
@@ -235,7 +311,7 @@ echo "Taker TOKEN_A Balance (should be increased):"
 dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$TAKER_PRINCIPAL\" })"
 ```
 
-#### Step 2.7: Verify Order was Filled
+#### Step 2.8: Verify Order was Filled
 
 ```bash
 # Check order status - should no longer be active
@@ -589,6 +665,53 @@ dfx canister call backend get_system_statistics '()'
 #### Issue: Orders not appearing
 
 **Solution:** Verify order creation succeeded and check the correct canister
+
+#### Issue: "InsufficientAllowance" errors when filling orders
+
+**Solution:** This is the most common issue with ICRC-2 tokens. Both the maker and taker must approve the backend canister before orders can be filled:
+
+1. **Maker approval** (required for TOKEN_A transfers):
+
+   ```bash
+   dfx canister call test_token_a icrc2_approve "(record {
+     from_subaccount = null;
+     spender = record { owner = principal \"$BACKEND_CANISTER_ID\"; subaccount = null };
+     amount = 1000000000000:nat;
+     expires_at = null;
+     fee = null;
+     memo = null;
+     created_at_time = null;
+   })"
+   ```
+
+2. **Taker approval** (required for TOKEN_B transfers):
+
+   ```bash
+   dfx canister call test_token_b icrc2_approve "(record {
+     from_subaccount = null;
+     spender = record { owner = principal \"$BACKEND_CANISTER_ID\"; subaccount = null };
+     amount = 1000000000000:nat;
+     expires_at = null;
+     fee = null;
+     memo = null;
+     created_at_time = null;
+   })"
+   ```
+
+3. **Taker approval for TOKEN_A** (required for receiving tokens):
+   ```bash
+   dfx canister call test_token_a icrc2_approve "(record {
+     from_subaccount = null;
+     spender = record { owner = principal \"$BACKEND_CANISTER_ID\"; subaccount = null };
+     amount = 1000000000000:nat;
+     expires_at = null;
+     fee = null;
+     memo = null;
+     created_at_time = null;
+   })"
+   ```
+
+**Why this happens:** ICRC-2 tokens require explicit approval before a canister can transfer tokens from a user's account. The backend canister needs to transfer tokens from both the maker and taker accounts, so both must approve it.
 
 ### Reset Test Environment
 
