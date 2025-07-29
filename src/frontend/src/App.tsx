@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { backend } from "../../declarations/backend";
 import { MainLayout } from "./components/layout/MainLayout";
 import { CreateOrderForm } from "./components/maker/CreateOrderForm";
+import { OrderBook } from "./components/taker/OrderBook";
 import {
   Card,
   CardContent,
@@ -65,6 +66,26 @@ function App() {
     } catch (err) {
       console.error("Error creating order:", err);
       setError("Failed to create order. Make sure backend is running.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Order filling handler
+  const handleFillOrder = async (orderId: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      console.log("Filling order:", orderId);
+      // This would call the actual backend fill_order function
+      // const result = await backend.fill_order(orderId);
+
+      // Simulate order filling
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      alert(`Order ${orderId} filled successfully! (This is a simulation)`);
+    } catch (err) {
+      console.error("Error filling order:", err);
+      setError("Failed to fill order. Make sure backend is running.");
     } finally {
       setLoading(false);
     }
@@ -183,22 +204,10 @@ function App() {
                 Browse and fill available limit orders
               </p>
             </div>
-            <Card>
-              <CardContent className="p-8 text-center">
-                <div className="space-y-4">
-                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
-                    <span className="text-2xl">📚</span>
-                  </div>
-                  <h3 className="text-xl font-semibold">
-                    Order Book Coming Soon
-                  </h3>
-                  <p className="text-muted-foreground">
-                    The order book interface is currently being developed
-                  </p>
-                  <Badge variant="secondary">Under Development</Badge>
-                </div>
-              </CardContent>
-            </Card>
+            <OrderBook
+              onFillOrder={(orderId) => void handleFillOrder(orderId)}
+              isLoading={loading}
+            />
           </div>
         );
 
