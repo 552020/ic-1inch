@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { backend } from "../../declarations/backend";
+import { MainLayout } from "./components/layout/MainLayout";
+import { CreateOrderForm } from "./components/maker/CreateOrderForm";
 import {
   Card,
   CardContent,
@@ -8,22 +10,72 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 
 function App() {
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userPrincipal, setUserPrincipal] = useState<string>();
+
+  // View management
+  const [currentView, setCurrentView] = useState<"maker" | "taker" | "relayer">(
+    "maker"
+  );
+
+  // Connection test state (for testing backend connectivity)
   const [greeting, setGreeting] = useState("");
-  const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Mock authentication functions
+  const handleLogin = async () => {
+    setLoading(true);
+    try {
+      // Simulate Internet Identity login
+      // In a real app, this would integrate with Internet Identity
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setIsAuthenticated(true);
+      setUserPrincipal("rdmx6-jaaaa-aaaah-qcaiq-cai");
+    } catch {
+      setError("Failed to authenticate");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setUserPrincipal(undefined);
+    setCurrentView("maker");
+  };
+
+  // Order creation handler
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleCreateOrder = async (orderData: any) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await backend.greet(name);
+      console.log("Creating order:", orderData);
+      // This would call the actual backend create_order function
+      // const result = await backend.create_order(...);
+
+      // Simulate order creation
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      alert("Order created successfully! (This is a simulation)");
+    } catch (err) {
+      console.error("Error creating order:", err);
+      setError("Failed to create order. Make sure backend is running.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Test backend connection
+  const testConnection = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await backend.greet("ICP Limit Orders");
       setGreeting(result);
     } catch (err) {
       console.error("Error calling backend:", err);
@@ -35,164 +87,165 @@ function App() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <div className="container mx-auto p-8">
-        <div className="max-w-4xl mx-auto">
-          {/* Header */}
-          <div className="text-center mb-12">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-xl">1🚀</span>
-              </div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
-                IC-1inch Limit Order Protocol
-              </h1>
-            </div>
-            <p className="text-lg text-muted-foreground mb-4">
-              MVP Implementation on Internet Computer
-            </p>
-            <Badge variant="secondary" className="text-sm">
-              🔗 ChainFusion+ Ready
-            </Badge>
-          </div>
-
-          {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Connection Test Card */}
-            <Card className="shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  🧪 Backend Connection Test
-                </CardTitle>
-                <CardDescription>
-                  Test the connection to your IC backend canister
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form
-                  onSubmit={(e) => {
-                    void handleSubmit(e);
-                  }}
-                  className="space-y-4"
+  // Render different views based on currentView
+  const renderMainContent = () => {
+    if (!isAuthenticated) {
+      return (
+        <div className="max-w-2xl mx-auto">
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle className="text-2xl">
+                Welcome to ICP Limit Orders
+              </CardTitle>
+              <CardDescription>
+                Connect your Internet Identity to start trading
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center mx-auto">
+                  <span className="text-white font-bold text-2xl">🚀</span>
+                </div>
+                <p className="text-muted-foreground">
+                  Create limit orders with zero gas fees using ICP&apos;s
+                  reverse gas model
+                </p>
+                <Button
+                  onClick={() => void handleLogin()}
+                  disabled={loading}
+                  size="lg"
+                  className="w-full"
                 >
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Enter your name</Label>
-                    <Input
-                      id="name"
-                      type="text"
-                      value={name}
-                      onChange={(e) => {
-                        setName(e.target.value);
-                      }}
-                      placeholder="Your name here..."
-                      disabled={loading}
-                      className="transition-all"
-                    />
-                  </div>
-                  <Button
-                    type="submit"
-                    disabled={loading || !name.trim()}
-                    className="w-full"
-                    size="lg"
-                  >
-                    {loading ? "Connecting..." : "🚀 Test Connection"}
-                  </Button>
-                </form>
+                  {loading ? "Connecting..." : "Connect Wallet"}
+                </Button>
+              </div>
 
-                {error && (
-                  <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                    <p className="text-sm text-destructive">{error}</p>
-                  </div>
-                )}
-
-                {greeting && (
-                  <div className="mt-4 p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
-                    <p className="text-green-800 dark:text-green-200 font-medium">
-                      ✅ {greeting}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Features Card */}
-            <Card className="shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  ⚡ Protocol Features
-                </CardTitle>
-                <CardDescription>
-                  What&apos;s implemented in this MVP
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+              {/* Backend Connection Test */}
+              <div className="pt-6 border-t">
                 <div className="space-y-4">
-                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                      📝
-                    </div>
-                    <div>
-                      <p className="font-medium">Create Limit Orders</p>
-                      <p className="text-sm text-muted-foreground">
-                        On-chain order creation
-                      </p>
-                    </div>
-                  </div>
+                  <h3 className="font-medium text-center">
+                    Backend Connection Test
+                  </h3>
+                  <Button
+                    onClick={() => void testConnection()}
+                    variant="outline"
+                    disabled={loading}
+                    className="w-full"
+                  >
+                    {loading ? "Testing..." : "Test Backend Connection"}
+                  </Button>
 
-                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    <div className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
-                      🔄
+                  {error && (
+                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                      <p className="text-sm text-destructive">{error}</p>
                     </div>
-                    <div>
-                      <p className="font-medium">Fill Orders</p>
-                      <p className="text-sm text-muted-foreground">
-                        Atomic token swaps
-                      </p>
-                    </div>
-                  </div>
+                  )}
 
-                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
-                      🌉
-                    </div>
-                    <div>
-                      <p className="font-medium">ICRC Integration</p>
-                      <p className="text-sm text-muted-foreground">
-                        Native ICP token support
+                  {greeting && (
+                    <div className="p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                      <p className="text-green-800 dark:text-green-200 text-sm">
+                        ✅ {greeting}
                       </p>
                     </div>
-                  </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
 
-                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center">
-                      🔮
-                    </div>
-                    <div>
-                      <p className="font-medium">ChainFusion+ Ready</p>
-                      <p className="text-sm text-muted-foreground">
-                        Cross-chain extension points
-                      </p>
-                    </div>
+    // Authenticated user views
+    switch (currentView) {
+      case "maker":
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold">Create Limit Order</h1>
+              <p className="text-muted-foreground mt-2">
+                Set your desired exchange rate and let takers fill your order
+              </p>
+            </div>
+            <CreateOrderForm
+              onSubmit={(data) => void handleCreateOrder(data)}
+              isLoading={loading}
+            />
+          </div>
+        );
+
+      case "taker":
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold">Order Book</h1>
+              <p className="text-muted-foreground mt-2">
+                Browse and fill available limit orders
+              </p>
+            </div>
+            <Card>
+              <CardContent className="p-8 text-center">
+                <div className="space-y-4">
+                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+                    <span className="text-2xl">📚</span>
                   </div>
+                  <h3 className="text-xl font-semibold">
+                    Order Book Coming Soon
+                  </h3>
+                  <p className="text-muted-foreground">
+                    The order book interface is currently being developed
+                  </p>
+                  <Badge variant="secondary">Under Development</Badge>
                 </div>
               </CardContent>
             </Card>
           </div>
+        );
 
-          {/* Status Footer */}
-          <div className="mt-12 text-center">
-            <p className="text-sm text-muted-foreground">
-              🔧 Development Status: <Badge variant="outline">MVP Phase</Badge>
-            </p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Once connection test passes, the limit order interface will be
-              available
-            </p>
+      case "relayer":
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold">Analytics Dashboard</h1>
+              <p className="text-muted-foreground mt-2">
+                Monitor system performance and statistics
+              </p>
+            </div>
+            <Card>
+              <CardContent className="p-8 text-center">
+                <div className="space-y-4">
+                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
+                    <span className="text-2xl">📊</span>
+                  </div>
+                  <h3 className="text-xl font-semibold">
+                    Analytics Coming Soon
+                  </h3>
+                  <p className="text-muted-foreground">
+                    Advanced analytics and monitoring tools are being developed
+                  </p>
+                  <Badge variant="secondary">Under Development</Badge>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </div>
-      </div>
-    </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <MainLayout
+      currentView={currentView}
+      onViewChange={setCurrentView}
+      isAuthenticated={isAuthenticated}
+      userPrincipal={userPrincipal}
+      onLogin={() => void handleLogin()}
+      onLogout={handleLogout}
+    >
+      {renderMainContent()}
+    </MainLayout>
   );
 }
 
