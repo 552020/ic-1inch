@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { backend } from "../../declarations/backend";
 import { MainLayout } from "./components/layout/MainLayout";
 import { CreateOrderForm } from "./components/maker/CreateOrderForm";

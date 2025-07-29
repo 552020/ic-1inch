@@ -11,7 +11,7 @@ import {
 } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Separator } from "../ui/separator";
-import { Textarea } from "../ui/textarea";
+
 import {
   Select,
   SelectContent,
@@ -22,7 +22,6 @@ import {
 import { Switch } from "../ui/switch";
 import {
   ArrowLeftRight,
-  Clock,
   DollarSign,
   Calendar as CalendarIcon,
   Info,
@@ -31,7 +30,6 @@ import {
   Calculator,
   AlertTriangle,
   CheckCircle,
-  Wallet,
 } from "lucide-react";
 
 // Simple date helpers

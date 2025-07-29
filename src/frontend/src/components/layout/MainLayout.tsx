@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { SidebarProvider, SidebarTrigger } from "../ui/sidebar";
 import { Header } from "./Header";
 import { AppSidebar } from "./Sidebar";
@@ -38,13 +38,6 @@ export function MainLayout({
     activeUsers: 234,
   };
 
-  const mockSystemStatus = {
-    blockHeight: 4782345,
-    lastUpdate: "2s ago",
-    cycleBalance: "12.5T",
-    networkLatency: 45,
-  };
-
   return (
     <SidebarProvider defaultOpen={true}>
       <div className="flex min-h-screen w-full">
@@ -82,7 +75,7 @@ export function MainLayout({
           </main>
 
           {/* Footer */}
-          <Footer systemStatus={mockSystemStatus} />
+          <Footer />
         </div>
       </div>
     </SidebarProvider>

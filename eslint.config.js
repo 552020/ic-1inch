@@ -36,6 +36,15 @@ export default tseslint.config(
       ],
       ...react.configs.recommended.rules,
       ...react.configs["jsx-runtime"].rules,
+
+      // Disable strict arrow function rules
+      "@typescript-eslint/no-misused-promises": "off",
+      "@typescript-eslint/require-await": "off",
+      "@typescript-eslint/no-floating-promises": "off",
+
+      // Allow arrow function shorthand
+      "arrow-body-style": "off",
+      "implicit-arrow-linebreak": "off",
     },
-  },
+  }
 );

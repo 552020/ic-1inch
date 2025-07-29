@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import {
@@ -73,9 +73,9 @@ export function Header({
               return (
                 <button
                   key={item.id}
-                  onClick={() =>
-                    onViewChange(item.id as "maker" | "taker" | "relayer")
-                  }
+                  onClick={() => {
+                    onViewChange(item.id as "maker" | "taker" | "relayer");
+                  }}
                   className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     currentView === item.id
                       ? "bg-blue-100 text-blue-700"
@@ -102,9 +102,9 @@ export function Header({
                     <User className="w-3 h-3" />
                     <span
                       className="cursor-pointer text-xs"
-                      onClick={() =>
-                        userPrincipal && copyToClipboard(userPrincipal)
-                      }
+                      onClick={() => {
+                        if (userPrincipal) void copyToClipboard(userPrincipal);
+                      }}
                       title={userPrincipal}
                     >
                       {userPrincipal
@@ -145,7 +145,9 @@ export function Header({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                onClick={() => {
+                  setMobileMenuOpen(!mobileMenuOpen);
+                }}
               >
                 {mobileMenuOpen ? (
                   <X className="w-5 h-5" />
@@ -188,7 +190,9 @@ export function Header({
                   <p className="text-sm text-gray-500">Connected as:</p>
                   <p
                     className="text-sm font-mono text-gray-900 cursor-pointer"
-                    onClick={() => copyToClipboard(userPrincipal)}
+                    onClick={() => {
+                      void copyToClipboard(userPrincipal);
+                    }}
                   >
                     {truncatePrincipal(userPrincipal)}
                   </p>
