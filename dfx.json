@@ -9,6 +9,11 @@
       "dependencies": ["backend"],
       "source": ["src/frontend/dist"],
       "type": "assets"
+    },
+    "test_token": {
+      "candid": "src/test_token/test_token.did",
+      "package": "test_token",
+      "type": "rust"
     }
   },
   "defaults": {
