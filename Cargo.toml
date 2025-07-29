@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "src/backend",
-    "src/test_token"
+    "src/test_token_a",
+    "src/test_token_b"
 ]
 resolver = "2"
