@@ -74,16 +74,19 @@ dfx identity use default
 DEFAULT_PRINCIPAL=$(dfx identity get-principal)
 print_success "Default principal: $DEFAULT_PRINCIPAL"
 
-# Use test_token canister for taker asset (local testing)
-print_status "Getting test_token canister ID for taker asset..."
-if dfx canister id test_token &> /dev/null; then
-    TEST_TAKER_ASSET=$(dfx canister id test_token)
-    print_success "Using test_token canister: $TEST_TAKER_ASSET"
+# Get test token canister IDs (can be used in either direction)
+print_status "Getting test token canister IDs..."
+if dfx canister id test_token_a &> /dev/null && dfx canister id test_token_b &> /dev/null; then
+    TEST_TOKEN_A=$(dfx canister id test_token_a)
+    TEST_TOKEN_B=$(dfx canister id test_token_b)
+    print_success "test_token_a: $TEST_TOKEN_A"
+    print_success "test_token_b: $TEST_TOKEN_B"
+    print_status "Note: These tokens can be used in either direction for testing"
 else
-    print_warning "test_token canister not found - some tests may not work properly"
-    print_warning "For full testing, deploy with: ./scripts/deploy-local.sh"
-    TEST_TAKER_ASSET="ss2fx-dyaaa-aaaar-qacoq-cai"
-    print_success "Using ckETH Ledger principal: $TEST_TAKER_ASSET"
+    print_warning "Test tokens not found - deploy with: ./scripts/deploy-local.sh"
+    TEST_TOKEN_A="ucwa4-rx777-77774-qaada-cai"
+    TEST_TOKEN_B="ufxgi-4p777-77774-qaadq-cai"
+    print_success "Using default test token IDs"
 fi
 
 # Create environment file
@@ -100,9 +103,9 @@ export TAKER_PRINCIPAL="$TAKER_PRINCIPAL"
 export DEFAULT_PRINCIPAL="$DEFAULT_PRINCIPAL"
 
 
-# Real Token Principals (ICP + ckETH)
-export TEST_MAKER_ASSET="aaaaa-aa"
-export TEST_TAKER_ASSET="$TEST_TAKER_ASSET"
+# Test Token Canister IDs (can be used in either direction)
+export TEST_TOKEN_A="$TEST_TOKEN_A"
+export TEST_TOKEN_B="$TEST_TOKEN_B"
 
 # Canister IDs (will be populated after deployment)
 export BACKEND_CANISTER_ID=""
@@ -125,7 +128,12 @@ echo "Then you can use:"
 echo "  \$MAKER_PRINCIPAL"
 echo "  \$TAKER_PRINCIPAL"
 echo "  \$DEFAULT_PRINCIPAL"
-echo "  \$TEST_TAKER_ASSET"
+echo "  \$TEST_TOKEN_A"
+echo "  \$TEST_TOKEN_B"
+echo ""
+echo "Test scenarios:"
+echo "  - Sell TOKEN_A for TOKEN_B: maker_asset=\$TEST_TOKEN_A, taker_asset=\$TEST_TOKEN_B"
+echo "  - Sell TOKEN_B for TOKEN_A: maker_asset=\$TEST_TOKEN_B, taker_asset=\$TEST_TOKEN_A"
 echo ""
 echo "Next steps:"
 echo "1. Deploy: dfx start --clean && dfx deploy"
