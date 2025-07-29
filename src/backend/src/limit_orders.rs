@@ -1,8 +1,6 @@
 use candid::Principal;
 use ic_cdk::api::time;
 use ic_cdk::caller;
-use icrc_ledger_types::icrc1::account::Account;
-use icrc_ledger_types::icrc1::transfer::{TransferArg, TransferError};
 
 use crate::memory::{
     generate_order_id, get_active_orders, get_order, is_order_active, mark_order_cancelled,
@@ -10,102 +8,12 @@ use crate::memory::{
     with_cancelled_orders_read, with_filled_orders_read, with_orders,
 };
 use crate::types::{
-    Order, OrderError, OrderId, OrderResult, SystemStats, MAX_ACTIVE_ORDERS, MAX_EXPIRATION_DAYS,
+    Order, OrderError, OrderId, OrderResult, SystemStats, TokenInterface, MAX_ACTIVE_ORDERS,
+    MAX_EXPIRATION_DAYS,
 };
-
 // ============================================================================
-// ICRC TOKEN INTEGRATION
+// VALIDATION FUNCTIONS
 // ============================================================================
-
-/// Token interface for ICRC-1 integration
-pub struct TokenInterface {
-    pub canister_id: Principal,
-}
-
-impl TokenInterface {
-    /// Create a new token interface for the given canister
-    pub fn new(canister_id: Principal) -> Self {
-        Self { canister_id }
-    }
-
-    /// Check balance of an account using ICRC-1 balance_of method
-    pub async fn balance_of(&self, account: Principal) -> OrderResult<u64> {
-        let account_arg = Account { owner: account, subaccount: None };
-
-        let result: Result<(u64,), _> =
-            ic_cdk::call(self.canister_id, "icrc1_balance_of", (account_arg,)).await;
-
-        match result {
-            Ok((balance,)) => Ok(balance),
-            Err(e) => {
-                let error_msg = format!("Balance check failed: {:?}", e);
-                track_error("balance_check_failed");
-                Err(OrderError::TokenCallFailed(error_msg))
-            }
-        }
-    }
-
-    /// Transfer tokens using ICRC-1 transfer method
-    pub async fn transfer(&self, _from: Principal, to: Principal, amount: u64) -> OrderResult<u64> {
-        let transfer_arg = TransferArg {
-            from_subaccount: None,
-            to: Account { owner: to, subaccount: None },
-            amount: amount.into(),
-            fee: None,
-            memo: None,
-            created_at_time: None,
-        };
-
-        let result: Result<(Result<u64, TransferError>,), _> =
-            ic_cdk::call(self.canister_id, "icrc1_transfer", (transfer_arg,)).await;
-
-        match result {
-            Ok((Ok(block_index),)) => Ok(block_index),
-            Ok((Err(transfer_error),)) => {
-                let error_msg = format!("Transfer failed: {:?}", transfer_error);
-                track_error("transfer_failed");
-                Err(OrderError::TransferFailed(error_msg))
-            }
-            Err(call_error) => {
-                let error_msg = format!("Transfer call failed: {:?}", call_error);
-                track_error("transfer_call_failed");
-                Err(OrderError::TokenCallFailed(error_msg))
-            }
-        }
-    }
-}
-
-// ============================================================================
-// COMPREHENSIVE VALIDATION FUNCTIONS
-// ============================================================================
-
-/// Validate order creation parameters (legacy function - use comprehensive version)
-pub fn validate_order_params(
-    maker_asset: Principal,
-    taker_asset: Principal,
-    making_amount: u64,
-    taking_amount: u64,
-    expiration: u64,
-) -> OrderResult<()> {
-    // Use comprehensive validation functions
-    validate_asset_pair(maker_asset, taker_asset)?;
-    validate_token_amounts(making_amount, taking_amount)?;
-    validate_expiration_timestamp(expiration)?;
-
-    Ok(())
-}
-
-/// Validate that the caller is authorized to create an order
-pub fn validate_create_order_authorization(caller: Principal) -> OrderResult<()> {
-    // For MVP: Allow any caller to create orders
-    // In production: Could implement role-based access control
-    if caller == Principal::anonymous() {
-        track_error("anonymous_caller");
-        return Err(OrderError::Unauthorized);
-    }
-
-    Ok(())
-}
 
 /// Validate that the caller is authorized to cancel an order
 pub fn validate_cancel_order_authorization(caller: Principal, order: &Order) -> OrderResult<()> {
@@ -158,39 +66,6 @@ pub async fn check_taker_balance(
     Ok(())
 }
 
-/// Validate that an order can be filled atomically
-/// This performs all pre-checks before attempting the actual fill
-pub async fn validate_order_fill(order: &Order, taker: Principal) -> OrderResult<()> {
-    // Check order is still active
-    if !is_order_active(order.id) {
-        if order.expiration <= time() {
-            return Err(OrderError::OrderExpired);
-        } else {
-            return Err(OrderError::OrderAlreadyFilled);
-        }
-    }
-
-    // Check allowed_taker restriction
-    if let Some(allowed_taker) = order.allowed_taker {
-        if taker != allowed_taker {
-            return Err(OrderError::Unauthorized);
-        }
-    }
-
-    // Skip balance checks for test mode
-    if order.maker_asset == Principal::management_canister()
-        || order.taker_asset == Principal::management_canister()
-    {
-        return Ok(());
-    }
-
-    // Check both parties have sufficient balances
-    check_maker_balance(order.maker_asset, order.maker, order.making_amount).await?;
-    check_taker_balance(order.taker_asset, taker, order.taking_amount).await?;
-
-    Ok(())
-}
-
 /// Validate Principal is not anonymous and properly formatted
 pub fn validate_principal(principal: Principal, field_name: &str) -> OrderResult<()> {
     if principal == Principal::anonymous() {
@@ -199,22 +74,6 @@ pub fn validate_principal(principal: Principal, field_name: &str) -> OrderResult
     }
 
     // Additional validation could be added here for specific principal formats
-    Ok(())
-}
-
-/// Validate order ID is within valid range
-pub fn validate_order_id(order_id: OrderId) -> OrderResult<()> {
-    if order_id == 0 {
-        track_error("invalid_order_id_zero");
-        return Err(OrderError::InvalidOrderId);
-    }
-
-    // Check if order ID is reasonable (not too large)
-    if order_id > u64::MAX / 2 {
-        track_error("invalid_order_id_too_large");
-        return Err(OrderError::InvalidOrderId);
-    }
-
     Ok(())
 }
 
@@ -310,8 +169,8 @@ pub fn validate_system_limits(caller: Principal) -> OrderResult<()> {
     Ok(())
 }
 
-/// Comprehensive order creation validation
-pub fn validate_create_order_comprehensive(
+/// Validate order creation parameters
+pub fn validate_create_order(
     caller: Principal,
     receiver: Principal,
     maker_asset: Principal,
@@ -319,7 +178,6 @@ pub fn validate_create_order_comprehensive(
     making_amount: u64,
     taking_amount: u64,
     expiration: u64,
-    allowed_taker: Option<Principal>,
 ) -> OrderResult<()> {
     // Validate caller
     validate_principal(caller, "caller")?;
@@ -336,77 +194,8 @@ pub fn validate_create_order_comprehensive(
     // Validate expiration
     validate_expiration_timestamp(expiration)?;
 
-    // Validate allowed_taker if specified
-    if let Some(taker) = allowed_taker {
-        validate_principal(taker, "allowed_taker")?;
-    }
-
     // Check system limits
     validate_system_limits(caller)?;
-
-    Ok(())
-}
-
-/// Comprehensive order fill validation
-pub fn validate_fill_order_comprehensive(caller: Principal, order: &Order) -> OrderResult<()> {
-    // Validate caller
-    validate_principal(caller, "caller")?;
-
-    // Validate order ID
-    validate_order_id(order.id)?;
-
-    // Check if order is active
-    if !is_order_active(order.id) {
-        if order.expiration <= time() {
-            track_error("fill_expired_order");
-            return Err(OrderError::OrderExpired);
-        } else {
-            track_error("fill_inactive_order");
-            return Err(OrderError::OrderInactive);
-        }
-    }
-
-    // Check allowed_taker restriction
-    if let Some(allowed_taker) = order.allowed_taker {
-        if caller != allowed_taker {
-            track_error("fill_not_allowed_taker");
-            return Err(OrderError::Unauthorized);
-        }
-    }
-
-    // Prevent self-filling
-    if caller == order.maker {
-        track_error("fill_self_order");
-        return Err(OrderError::Unauthorized);
-    }
-
-    Ok(())
-}
-
-/// Comprehensive order cancellation validation
-pub fn validate_cancel_order_comprehensive(caller: Principal, order: &Order) -> OrderResult<()> {
-    // Validate caller
-    validate_principal(caller, "caller")?;
-
-    // Validate order ID
-    validate_order_id(order.id)?;
-
-    // Only maker can cancel
-    if caller != order.maker {
-        track_error("cancel_not_maker");
-        return Err(OrderError::NotOrderMaker);
-    }
-
-    // Check if order can be cancelled
-    if !is_order_active(order.id) {
-        if order.expiration <= time() {
-            track_error("cancel_expired_order");
-            return Err(OrderError::OrderExpired);
-        } else {
-            track_error("cancel_inactive_order");
-            return Err(OrderError::OrderInactive);
-        }
-    }
 
     Ok(())
 }
@@ -423,12 +212,11 @@ pub async fn create_order(
     making_amount: u64,
     taking_amount: u64,
     expiration: u64,
-    allowed_taker: Option<Principal>,
 ) -> OrderResult<OrderId> {
     let caller = caller();
 
-    // Comprehensive validation
-    validate_create_order_comprehensive(
+    // Validate order creation
+    validate_create_order(
         caller,
         receiver,
         maker_asset,
@@ -436,7 +224,6 @@ pub async fn create_order(
         making_amount,
         taking_amount,
         expiration,
-        allowed_taker,
     )?;
 
     // Check maker has sufficient balance (skip in test mode with mock tokens)
@@ -460,7 +247,6 @@ pub async fn create_order(
         taking_amount,
         expiration,
         created_at: time(),
-        allowed_taker,
         metadata: None, // MVP doesn't use metadata, reserved for ChainFusion+
     };
 
@@ -568,14 +354,6 @@ pub async fn fill_order(order_id: OrderId) -> OrderResult<()> {
             // If we reach here, something unexpected happened
             track_error("fill_inactive_order_unknown");
             return Err(OrderError::OrderAlreadyFilled);
-        }
-    }
-
-    // Phase 3: Authorization validation
-    if let Some(allowed_taker) = order.allowed_taker {
-        if taker != allowed_taker {
-            track_error("unauthorized_fill");
-            return Err(OrderError::Unauthorized);
         }
     }
 
@@ -696,76 +474,6 @@ fn update_order_cancelled_state(order_id: OrderId) {
 }
 
 /// Batch cancel multiple orders by the same maker
-/// This is useful for cancelling multiple orders efficiently
-pub fn batch_cancel_orders(order_ids: Vec<OrderId>) -> Vec<(OrderId, OrderResult<()>)> {
-    let caller = caller();
-    let mut results = Vec::new();
-
-    for order_id in order_ids {
-        let result = cancel_order_internal(order_id, caller);
-        results.push((order_id, result));
-    }
-
-    results
-}
-
-/// Internal cancel function that accepts caller as parameter
-/// This allows for batch operations without repeated caller() calls
-fn cancel_order_internal(order_id: OrderId, caller: Principal) -> OrderResult<()> {
-    // Phase 1: Order retrieval and basic validation
-    let order = get_order(order_id).ok_or_else(|| {
-        track_error("cancel_order_not_found");
-        OrderError::OrderNotFound
-    })?;
-
-    // Phase 2: Authorization validation
-    validate_cancel_order_authorization(caller, &order)?;
-
-    // Phase 3: Order state validation
-    if !is_order_active(order_id) {
-        if order.expiration <= time() {
-            track_error("cancel_expired_order");
-            return Err(OrderError::OrderExpired);
-        }
-
-        let is_filled = with_filled_orders_read(|filled| filled.contains(&order_id));
-        if is_filled {
-            track_error("cancel_already_filled_order");
-            return Err(OrderError::OrderAlreadyFilled);
-        }
-
-        let is_cancelled = with_cancelled_orders_read(|cancelled| cancelled.contains(&order_id));
-        if is_cancelled {
-            track_error("cancel_already_cancelled_order");
-            return Err(OrderError::OrderCancelled);
-        }
-
-        track_error("cancel_inactive_order_unknown");
-        return Err(OrderError::OrderAlreadyFilled);
-    }
-
-    // Phase 4: Execute cancellation
-    update_order_cancelled_state(order_id);
-
-    Ok(())
-}
-
-/// Check if an order can be cancelled
-/// This is useful for UI validation before attempting cancellation
-pub fn can_cancel_order(order_id: OrderId, caller: Principal) -> bool {
-    // Get order
-    let Some(order) = get_order(order_id) else {
-        return false;
-    };
-
-    // Check authorization
-    if caller != order.maker || caller == Principal::anonymous() {
-        return false;
-    }
-
-    // Check if order is still active
-    is_order_active(order_id)
-}
 
 // ============================================================================
 // QUERY FUNCTIONS
@@ -800,41 +508,6 @@ pub fn get_system_statistics() -> SystemStats {
 }
 
 // ============================================================================
-// FUTURE EXTENSION POINTS FOR CHAINFUSION+
-// ============================================================================
-
-/// Extension trait for future cross-chain functionality
-pub trait CrossChainOrderExtension {
-    async fn create_cross_chain_order(
-        &self,
-        base_order: Order,
-        hashlock: Vec<u8>,
-        timelock: u64,
-        target_chain: String,
-    ) -> OrderResult<OrderId>;
-
-    async fn resolve_cross_chain_order(
-        &self,
-        order_id: OrderId,
-        preimage: Vec<u8>,
-    ) -> OrderResult<()>;
-}
-
-/// Plugin architecture for order validation
-pub trait OrderValidator {
-    fn validate_order(&self, order: &Order) -> OrderResult<()>;
-}
-
-/// Default validator for MVP
-pub struct BasicOrderValidator;
-
-impl OrderValidator for BasicOrderValidator {
-    fn validate_order(&self, order: &Order) -> OrderResult<()> {
-        order.validate()
-    }
-}
-
-// ============================================================================
 // TESTING UTILITIES
 // ============================================================================
 
@@ -855,7 +528,7 @@ pub mod tests {
             taking_amount: 2000,
             expiration: time() + 3600_000_000_000, // 1 hour
             created_at: time(),
-            allowed_taker: None,
+
             metadata: None,
         }
     }
@@ -869,33 +542,48 @@ pub mod tests {
     fn test_validate_order_params() {
         let maker_asset = Principal::from_slice(&[1, 2, 3, 4]);
         let taker_asset = Principal::from_slice(&[5, 6, 7, 8]);
+        let caller = Principal::from_slice(&[9, 10, 11, 12]);
+        let receiver = Principal::from_slice(&[13, 14, 15, 16]);
         // Use a fixed future time for testing instead of calling time()
         let current_time = 1_000_000_000_000_000_000u64; // Mock current time
         let future_time = current_time + 3600_000_000_000; // 1 hour later
 
-        // Valid parameters should pass (we'll need to mock the time function)
-        // For now, just test the basic validation logic
-
+        // Test order validation instead of deleted function
         // Invalid amounts should fail
-        assert!(validate_order_params(maker_asset, taker_asset, 0, 2000, future_time).is_err());
-        assert!(validate_order_params(maker_asset, taker_asset, 1000, 0, future_time).is_err());
+        assert!(validate_create_order(
+            caller,
+            receiver,
+            maker_asset,
+            taker_asset,
+            0,
+            2000,
+            future_time
+        )
+        .is_err());
+        assert!(validate_create_order(
+            caller,
+            receiver,
+            maker_asset,
+            taker_asset,
+            1000,
+            0,
+            future_time
+        )
+        .is_err());
 
         // Same asset pair should fail
-        assert!(validate_order_params(maker_asset, maker_asset, 1000, 2000, future_time).is_err());
+        assert!(validate_create_order(
+            caller,
+            receiver,
+            maker_asset,
+            maker_asset,
+            1000,
+            2000,
+            future_time
+        )
+        .is_err());
 
         // Note: Expiration validation requires canister environment, so we skip those tests
         // In integration tests, we can test the full validation logic
-    }
-
-    #[test]
-    fn test_order_creation_validation() {
-        let anonymous = Principal::anonymous();
-        let valid_principal = Principal::from_slice(&[1, 2, 3, 4]);
-
-        // Anonymous caller should be rejected
-        assert!(validate_create_order_authorization(anonymous).is_err());
-
-        // Valid principal should be accepted
-        assert!(validate_create_order_authorization(valid_principal).is_ok());
     }
 }

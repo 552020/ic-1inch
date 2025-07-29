@@ -1,4 +1,7 @@
+use crate::memory::track_error;
 use candid::{CandidType, Deserialize, Principal};
+use icrc_ledger_types::icrc1::account::Account;
+use icrc_ledger_types::icrc1::transfer::{TransferArg, TransferError};
 use std::collections::HashMap;
 
 #[derive(CandidType, Deserialize, Clone, Debug)]
@@ -131,7 +134,6 @@ pub struct Order {
     pub taking_amount: u64,
     pub expiration: u64, // Nanoseconds since epoch
     pub created_at: u64,
-    pub allowed_taker: Option<Principal>, // Private orders
 
     // Extension fields for future ChainFusion+ compatibility
     pub metadata: Option<OrderMetadata>,
@@ -215,7 +217,6 @@ pub struct CreateOrderParams {
     pub making_amount: u64,
     pub taking_amount: u64,
     pub expiration: u64,
-    pub allowed_taker: Option<Principal>,
 }
 
 // Result types for limit order operations
@@ -363,5 +364,67 @@ impl SystemStats {
     /// Track error occurrence
     pub fn track_error(&mut self, error_type: &str) {
         *self.error_counts.entry(error_type.to_string()).or_insert(0) += 1;
+    }
+}
+
+// ============================================================================
+// ICRC TOKEN INTEGRATION
+// ============================================================================
+
+/// Token interface for ICRC-1 integration
+pub struct TokenInterface {
+    pub canister_id: Principal,
+}
+
+impl TokenInterface {
+    /// Create a new token interface for the given canister
+    pub fn new(canister_id: Principal) -> Self {
+        Self { canister_id }
+    }
+
+    /// Check balance of an account using ICRC-1 balance_of method
+    pub async fn balance_of(&self, account: Principal) -> OrderResult<u64> {
+        let account_arg = Account { owner: account, subaccount: None };
+
+        let result: std::result::Result<(u64,), _> =
+            ic_cdk::call(self.canister_id, "icrc1_balance_of", (account_arg,)).await;
+
+        match result {
+            Ok((balance,)) => Ok(balance),
+            Err(e) => {
+                let error_msg = format!("Balance check failed: {:?}", e);
+                track_error("balance_check_failed");
+                Err(OrderError::TokenCallFailed(error_msg))
+            }
+        }
+    }
+
+    /// Transfer tokens using ICRC-1 transfer method
+    pub async fn transfer(&self, _from: Principal, to: Principal, amount: u64) -> OrderResult<u64> {
+        let transfer_arg = TransferArg {
+            from_subaccount: None,
+            to: Account { owner: to, subaccount: None },
+            amount: amount.into(),
+            fee: None,
+            memo: None,
+            created_at_time: None,
+        };
+
+        let result: std::result::Result<(std::result::Result<u64, TransferError>,), _> =
+            ic_cdk::call(self.canister_id, "icrc1_transfer", (transfer_arg,)).await;
+
+        match result {
+            Ok((Ok(block_index),)) => Ok(block_index),
+            Ok((Err(transfer_error),)) => {
+                let error_msg = format!("Transfer failed: {:?}", transfer_error);
+                track_error("transfer_failed");
+                Err(OrderError::TransferFailed(error_msg))
+            }
+            Err(call_error) => {
+                let error_msg = format!("Transfer call failed: {:?}", call_error);
+                track_error("transfer_call_failed");
+                Err(OrderError::TokenCallFailed(error_msg))
+            }
+        }
     }
 }
