@@ -29,5 +29,6 @@ package-lock.json
 
 internal/
 secretus/
+docs/implementation/
 
- pnpm-lock.yaml
+pnpm-lock.yaml

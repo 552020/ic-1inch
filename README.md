@@ -75,6 +75,23 @@ Cross-chain systems require users to trust various components. This section expl
 
 ---
 
+## Development
+
+### Phase 0 - Understand 1inch Chain Fusion+
+
+- [ ] Read docs
+- [ ] Exchange with people
+- [ ] Try some code
+
+### Phase 1 - Implement 1inch Limit Order Protocol
+
+Since the Chain Fusion+, builds on the top of Chain Fusio and the Limit Order Protocol, we decided to implement first the Limit Order Protocol on ICP
+
+#### Resources
+
+- Anton Bukov, "Limit Order Protocol presentation" --> https://www.youtube.com/live/DKQJlzJuTqQ?si=uYVrEpZpAcJo0Dtg&t=3252
+- 1inch Limit Order Protocol implementation --> https://github.com/1inch/limit-order-protocol
+
 ## Architecture - 1inch Fusion Atomic Swaps Flow
 
 ## Overview
