@@ -158,6 +158,12 @@ pub async fn mint_for_caller(amount: u128) -> Result<u64, String> {
     })
 }
 
+// Health check endpoint
+#[query]
+pub fn ping() -> String {
+    "pong".to_string()
+}
+
 // Initialize function
 #[ic_cdk::init]
 fn init() {
