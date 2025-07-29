@@ -7,7 +7,7 @@ use icrc_ledger_types::icrc1::transfer::{TransferArg, TransferError};
 use crate::memory::{
     generate_order_id, get_active_orders, get_order, is_order_active, mark_order_cancelled,
     mark_order_filled, track_error, track_order_cancelled, track_order_created, track_order_filled,
-    with_orders,
+    with_cancelled_orders_read, with_filled_orders_read, with_orders,
 };
 use crate::types::{Order, OrderError, OrderId, OrderResult, SystemStats};
 
@@ -28,10 +28,7 @@ impl TokenInterface {
 
     /// Check balance of an account using ICRC-1 balance_of method
     pub async fn balance_of(&self, account: Principal) -> OrderResult<u64> {
-        let account_arg = Account {
-            owner: account,
-            subaccount: None,
-        };
+        let account_arg = Account { owner: account, subaccount: None };
 
         let result: Result<(u64,), _> =
             ic_cdk::call(self.canister_id, "icrc1_balance_of", (account_arg,)).await;
@@ -50,10 +47,7 @@ impl TokenInterface {
     pub async fn transfer(&self, _from: Principal, to: Principal, amount: u64) -> OrderResult<u64> {
         let transfer_arg = TransferArg {
             from_subaccount: None,
-            to: Account {
-                owner: to,
-                subaccount: None,
-            },
+            to: Account { owner: to, subaccount: None },
             amount: amount.into(),
             fee: None,
             memo: None,
@@ -176,6 +170,39 @@ pub async fn check_taker_balance(
     Ok(())
 }
 
+/// Validate that an order can be filled atomically
+/// This performs all pre-checks before attempting the actual fill
+pub async fn validate_order_fill(order: &Order, taker: Principal) -> OrderResult<()> {
+    // Check order is still active
+    if !is_order_active(order.id) {
+        if order.expiration <= time() {
+            return Err(OrderError::OrderExpired);
+        } else {
+            return Err(OrderError::OrderAlreadyFilled);
+        }
+    }
+
+    // Check allowed_taker restriction
+    if let Some(allowed_taker) = order.allowed_taker {
+        if taker != allowed_taker {
+            return Err(OrderError::Unauthorized);
+        }
+    }
+
+    // Skip balance checks for test mode
+    if order.maker_asset == Principal::management_canister()
+        || order.taker_asset == Principal::management_canister()
+    {
+        return Ok(());
+    }
+
+    // Check both parties have sufficient balances
+    check_maker_balance(order.maker_asset, order.maker, order.making_amount).await?;
+    check_taker_balance(order.taker_asset, taker, order.taking_amount).await?;
+
+    Ok(())
+}
+
 // ============================================================================
 // ORDER MANAGEMENT FUNCTIONS
 // ============================================================================
@@ -196,13 +223,7 @@ pub async fn create_order(
     validate_create_order_authorization(caller)?;
 
     // Validate parameters
-    validate_order_params(
-        maker_asset,
-        taker_asset,
-        making_amount,
-        taking_amount,
-        expiration,
-    )?;
+    validate_order_params(maker_asset, taker_asset, making_amount, taking_amount, expiration)?;
 
     // Check maker has sufficient balance (skip in test mode with mock tokens)
     if maker_asset != Principal::management_canister()
@@ -272,25 +293,51 @@ pub fn cancel_order(order_id: OrderId) -> OrderResult<()> {
 }
 
 /// Fill an existing order atomically
+///
+/// This function implements a comprehensive order filling process with:
+/// - Thorough validation before execution
+/// - Atomic token transfers with rollback capability
+/// - Proper state management and statistics tracking
 pub async fn fill_order(order_id: OrderId) -> OrderResult<()> {
     let taker = caller();
 
-    // Get order
-    let order = get_order(order_id).ok_or(OrderError::OrderNotFound)?;
+    // Phase 1: Order retrieval and basic validation
+    let order = get_order(order_id).ok_or_else(|| {
+        track_error("order_not_found");
+        OrderError::OrderNotFound
+    })?;
 
-    // Validate order can be filled
+    // Phase 2: Order state validation
     if !is_order_active(order_id) {
         // Determine specific reason for better error reporting
         if order.expiration <= time() {
             track_error("fill_expired_order");
             return Err(OrderError::OrderExpired);
         } else {
-            track_error("fill_inactive_order");
+            // Check if filled or cancelled
+            with_filled_orders_read(|filled| {
+                if filled.contains(&order_id) {
+                    track_error("fill_already_filled_order");
+                    return Err(OrderError::OrderAlreadyFilled);
+                }
+                Ok(())
+            })?;
+
+            with_cancelled_orders_read(|cancelled| {
+                if cancelled.contains(&order_id) {
+                    track_error("fill_cancelled_order");
+                    return Err(OrderError::OrderCancelled);
+                }
+                Ok(())
+            })?;
+
+            // If we reach here, something unexpected happened
+            track_error("fill_inactive_order_unknown");
             return Err(OrderError::OrderAlreadyFilled);
         }
     }
 
-    // Check allowed_taker restriction
+    // Phase 3: Authorization validation
     if let Some(allowed_taker) = order.allowed_taker {
         if taker != allowed_taker {
             track_error("unauthorized_fill");
@@ -298,25 +345,26 @@ pub async fn fill_order(order_id: OrderId) -> OrderResult<()> {
         }
     }
 
-    // Check taker has sufficient balance (skip in test mode with mock tokens)
+    // Phase 4: Balance validation (skip in test mode with mock tokens)
     if order.taker_asset != Principal::management_canister() {
         check_taker_balance(order.taker_asset, taker, order.taking_amount).await?;
     }
 
-    // Execute atomic transfers
+    // Phase 5: Execute atomic transfers
     execute_order_transfers(&order, taker).await?;
 
-    // Mark order as filled
-    mark_order_filled(order_id);
-
-    // Track statistics
-    track_order_filled(order.maker_asset, order.making_amount);
-    track_order_filled(order.taker_asset, order.taking_amount);
+    // Phase 6: Update state and statistics (only after successful transfers)
+    update_order_filled_state(order_id, &order);
 
     Ok(())
 }
 
 /// Execute the atomic token transfers for order filling
+///
+/// This function implements a two-phase commit pattern for better atomicity:
+/// 1. Pre-validate both transfers can succeed
+/// 2. Execute both transfers
+/// 3. If any transfer fails, attempt rollback (best effort)
 async fn execute_order_transfers(order: &Order, taker: Principal) -> OrderResult<()> {
     // Skip actual transfers in test mode with mock tokens (management canister)
     if order.maker_asset == Principal::management_canister()
@@ -329,29 +377,78 @@ async fn execute_order_transfers(order: &Order, taker: Principal) -> OrderResult
     let maker_token = TokenInterface::new(order.maker_asset);
     let taker_token = TokenInterface::new(order.taker_asset);
 
-    // Transfer taker asset from taker to receiver
-    let taker_transfer_result = taker_token
-        .transfer(taker, order.receiver, order.taking_amount)
-        .await;
-
-    if let Err(e) = taker_transfer_result {
-        track_error("taker_transfer_failed");
-        return Err(e);
+    // Phase 1: Pre-validation - Check balances again to minimize failure risk
+    let taker_balance = taker_token.balance_of(taker).await?;
+    if taker_balance < order.taking_amount {
+        track_error("taker_insufficient_balance_at_fill");
+        return Err(OrderError::InsufficientBalance);
     }
 
-    // Transfer maker asset from maker to taker
-    let maker_transfer_result = maker_token
-        .transfer(order.maker, taker, order.making_amount)
-        .await;
-
-    if let Err(e) = maker_transfer_result {
-        track_error("maker_transfer_failed");
-        // Note: In a production system, we would need to implement
-        // compensation logic here to reverse the taker transfer
-        return Err(e);
+    let maker_balance = maker_token.balance_of(order.maker).await?;
+    if maker_balance < order.making_amount {
+        track_error("maker_insufficient_balance_at_fill");
+        return Err(OrderError::InsufficientBalance);
     }
 
-    Ok(())
+    // Phase 2: Execute transfers with rollback capability
+    // Transfer 1: Taker asset from taker to receiver
+    let taker_transfer_result =
+        taker_token.transfer(taker, order.receiver, order.taking_amount).await;
+
+    let taker_block_index = match taker_transfer_result {
+        Ok(block_index) => block_index,
+        Err(e) => {
+            track_error("taker_transfer_failed");
+            return Err(e);
+        }
+    };
+
+    // Transfer 2: Maker asset from maker to taker
+    let maker_transfer_result = maker_token.transfer(order.maker, taker, order.making_amount).await;
+
+    match maker_transfer_result {
+        Ok(_maker_block_index) => {
+            // Both transfers successful
+            Ok(())
+        }
+        Err(e) => {
+            track_error("maker_transfer_failed");
+
+            // Attempt rollback of taker transfer (best effort)
+            // Note: This is not guaranteed to succeed due to ICRC-1 limitations
+            // In production, consider using ICRC-2 with allowances for better atomicity
+            let rollback_result =
+                taker_token.transfer(order.receiver, taker, order.taking_amount).await;
+
+            match rollback_result {
+                Ok(_) => {
+                    track_error("transfer_rolled_back_successfully");
+                    // Return original error
+                    Err(e)
+                }
+                Err(rollback_error) => {
+                    track_error("rollback_failed_critical");
+                    // Critical: Rollback failed, system may be in inconsistent state
+                    // Log both errors for manual intervention
+                    Err(OrderError::SystemError(format!(
+                        "Transfer failed and rollback failed. Original: {:?}, Rollback: {:?}, TakerBlockIndex: {}",
+                        e, rollback_error, taker_block_index
+                    )))
+                }
+            }
+        }
+    }
+}
+
+/// Update order state and statistics after successful fill
+/// This function ensures atomic state updates
+fn update_order_filled_state(order_id: OrderId, order: &Order) {
+    // Mark order as filled
+    mark_order_filled(order_id);
+
+    // Track statistics for both assets
+    track_order_filled(order.maker_asset, order.making_amount);
+    track_order_filled(order.taker_asset, order.taking_amount);
 }
 
 // ============================================================================
@@ -370,13 +467,7 @@ pub fn get_order_by_id(order_id: OrderId) -> Option<Order> {
 
 /// Get orders by maker
 pub fn get_orders_by_maker(maker: Principal) -> Vec<Order> {
-    with_orders(|orders| {
-        orders
-            .values()
-            .filter(|order| order.maker == maker)
-            .cloned()
-            .collect()
-    })
+    with_orders(|orders| orders.values().filter(|order| order.maker == maker).cloned().collect())
 }
 
 /// Get orders by asset pair
