@@ -147,6 +147,17 @@ pub async fn mint_tokens(to: Principal, amount: u128) -> Result<u64, String> {
     })
 }
 
+// Mint tokens for the caller (convenience function for testing)
+#[update]
+pub async fn mint_for_caller(amount: u128) -> Result<u64, String> {
+    let caller = caller();
+    BALANCES.with(|balances| {
+        let mut balances = balances.borrow_mut();
+        *balances.entry(caller).or_insert(0) += amount;
+        Ok(1) // Mock transaction ID
+    })
+}
+
 // Initialize function
 #[ic_cdk::init]
 fn init() {
