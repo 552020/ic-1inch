@@ -401,3 +401,19 @@ impl TokenInterface {
         }
     }
 }
+
+/// Taker information for fee economics (MVP - non-enforced)
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub struct TakerInfo {
+    pub balance_icp: u128,    // Pre-deposited ICP balance
+    pub filled_orders: u64,   // Track activity
+    pub is_whitelisted: bool, // Current: hardcoded true for MVP
+}
+
+/// Protocol fee configuration for ICP context
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub struct ProtocolFees {
+    pub flat_fee_icp: u128,          // Per settlement fee in ICP
+    pub percentage_fee_bps: u32,     // Basis points (e.g., 10 = 0.1%)
+    pub min_balance_threshold: u128, // Minimum required ICP balance
+}

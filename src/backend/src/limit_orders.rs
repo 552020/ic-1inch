@@ -66,6 +66,20 @@ pub async fn check_taker_balance(
     Ok(())
 }
 
+/// Check if taker has sufficient balance for protocol fees (MVP - always returns true)
+/// TODO: Implement actual balance checking when fee enforcement is enabled
+pub fn check_taker_fee_balance(taker: Principal) -> OrderResult<()> {
+    // For MVP: Always return true - no fee enforcement yet
+    // Future: Check taker's ICP balance against protocol fee requirements
+
+    // TODO: Implement actual balance checking:
+    // 1. Get taker info from registry
+    // 2. Check if balance_icp >= min_balance_threshold
+    // 3. Return error if insufficient balance
+
+    Ok(())
+}
+
 /// Validate Principal is not anonymous and properly formatted
 pub fn validate_principal(principal: Principal, field_name: &str) -> OrderResult<()> {
     if principal == Principal::anonymous() {
