@@ -11,11 +11,19 @@ echo "🔧 Generating DID files and declarations..."
 echo "📝 Generating DID files..."
 generate-did backend
 
-# Generate TypeScript declarations
+# Generate TypeScript declarations for Rust canisters only
 echo "📝 Generating TypeScript declarations..."
-dfx generate
+dfx generate backend
+dfx generate test_token
 
 echo "✅ Declarations generated successfully!"
 echo "📁 Generated files:"
-echo "   - src/declarations/ (TypeScript declarations)"
-echo "   - src/backend/backend.did (Backend interface)" 
+if [ -d "src/declarations" ]; then
+    echo "   - src/declarations/ (TypeScript declarations)"
+fi
+if [ -f "src/backend/backend.did" ]; then
+    echo "   - src/backend/backend.did (Backend interface)"
+fi
+if [ -f "src/test_token/test_token.did" ]; then
+    echo "   - src/test_token/test_token.did (Test token interface)"
+fi 
