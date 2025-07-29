@@ -374,7 +374,13 @@ pub async fn fill_order(order_id: OrderId) -> OrderResult<()> {
         OrderError::OrderNotFound
     })?;
 
-    // Phase 2: Order state validation
+    // Phase 3: Authorization validation
+    if taker == order.maker {
+        track_error("fill_own_order");
+        return Err(OrderError::Unauthorized);
+    }
+
+    // Phase 4: Order state validation
     if !is_order_active(order_id) {
         // Determine specific reason for better error reporting
         if order.expiration <= time() {
@@ -404,15 +410,15 @@ pub async fn fill_order(order_id: OrderId) -> OrderResult<()> {
         }
     }
 
-    // Phase 4: Balance validation (skip in test mode with mock tokens)
+    // Phase 5: Balance validation (skip in test mode with mock tokens)
     if order.taker_asset != Principal::management_canister() {
         check_taker_balance(order.taker_asset, taker, order.taking_amount).await?;
     }
 
-    // Phase 5: Execute atomic transfers
+    // Phase 6: Execute atomic transfers
     execute_order_transfers(&order, taker).await?;
 
-    // Phase 6: Update state and statistics (only after successful transfers)
+    // Phase 7: Update state and statistics (only after successful transfers)
     update_order_filled_state(order_id, &order);
 
     Ok(())
