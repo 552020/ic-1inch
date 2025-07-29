@@ -14,7 +14,8 @@ generate-did backend
 # Generate TypeScript declarations for Rust canisters only
 echo "📝 Generating TypeScript declarations..."
 dfx generate backend
-dfx generate test_token
+dfx generate test_token_a
+dfx generate test_token_b
 
 echo "✅ Declarations generated successfully!"
 echo "📁 Generated files:"
@@ -24,6 +25,9 @@ fi
 if [ -f "src/backend/backend.did" ]; then
     echo "   - src/backend/backend.did (Backend interface)"
 fi
-if [ -f "src/test_token/test_token.did" ]; then
-    echo "   - src/test_token/test_token.did (Test token interface)"
+if [ -f "src/test_token_a/test_token_a.did" ]; then
+    echo "   - src/test_token_a/test_token_a.did (Test token A interface)"
+fi
+if [ -f "src/test_token_b/test_token_b.did" ]; then
+    echo "   - src/test_token_b/test_token_b.did (Test token B interface)"
 fi 

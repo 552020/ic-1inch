@@ -54,6 +54,13 @@ source .env.test
 dfx identity use maker
 dfx identity whoami
 
+# Fund the maker with TOKEN_A tokens so they can create orders
+# This is needed because the maker needs TOKEN_A tokens to sell
+dfx canister call test_token_a mint_tokens "(principal \"$MAKER_PRINCIPAL\", 2000000000:nat)"
+
+# Check maker balance after minting
+dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\" })"
+
 # Create order: Sell 10 TOKEN_A for 0.001 TOKEN_B
 # Parameters explained:
 # - principal "$MAKER_PRINCIPAL"     # receiver (who gets the taker asset)
@@ -160,7 +167,7 @@ dfx identity whoami
 
 ```bash
 # Check taker balance before minting
-dfx canister call test_token icrc1_balance_of "(record { owner = principal \"$TAKER_PRINCIPAL\" })"
+dfx canister call test_token_b icrc1_balance_of "(record { owner = principal \"$TAKER_PRINCIPAL\" })"
 
 # Fund the taker identity with TOKEN_B tokens so they can fill orders
 # This is needed because the taker needs TOKEN_B tokens to pay for the order
@@ -194,10 +201,14 @@ dfx canister call backend get_active_orders '()'
 ```bash
 # Check balances before filling the order
 echo "=== BALANCES BEFORE FILL ==="
-echo "Maker ICP Balance (local testing - may not be available):"
-# dfx canister call ryjl3-tyaaa-aaaaa-aaaba-cai icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\" })"
-echo "Taker TOKEN_B Balance:"
+echo "Maker TOKEN_A Balance (what they're selling):"
+dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\" })"
+echo "Taker TOKEN_B Balance (what they're spending):"
 dfx canister call test_token_b icrc1_balance_of "(record { owner = principal \"$TAKER_PRINCIPAL\" })"
+echo "Maker TOKEN_B Balance (what they'll receive):"
+dfx canister call test_token_b icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\" })"
+echo "Taker TOKEN_A Balance (what they'll receive):"
+dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$TAKER_PRINCIPAL\" })"
 ```
 
 #### Step 2.5: Fill the Order

@@ -1,5 +1,6 @@
 use candid::{CandidType, Deserialize, Principal};
 use ic_cdk::{caller, query, update};
+use icrc_ledger_types::icrc1::transfer::TransferError;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -26,17 +27,7 @@ pub struct TransferResult {
     pub err: Option<TransferError>,
 }
 
-#[derive(CandidType, Deserialize, Clone, Debug)]
-pub enum TransferError {
-    BadFee { expected_fee: u128 },
-    BadBurn { min_burn_amount: u128 },
-    InsufficientFunds { balance: u128 },
-    TooOld,
-    CreatedInFuture { ledger_time: u64 },
-    Duplicate { duplicate_of: u64 },
-    TemporarilyUnavailable,
-    GenericError { error_code: u128, message: String },
-}
+// Using TransferError from icrc_ledger_types instead of custom definition
 
 // Storage
 thread_local! {
@@ -122,7 +113,9 @@ pub async fn icrc1_transfer(args: TransferArgs) -> TransferResult {
         if from_balance < amount {
             return TransferResult {
                 ok: None,
-                err: Some(TransferError::InsufficientFunds { balance: from_balance }),
+                err: Some(TransferError::InsufficientFunds {
+                    balance: candid::Nat::from(from_balance),
+                }),
             };
         }
 
