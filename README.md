@@ -16,8 +16,8 @@ This project addresses the **"Extend Fusion+ to ICP"** challenge by **building a
 
 ### Qualification Requirements (Mandatory)
 
-- [x] **Preserve hashlock and timelock functionality** for the non-EVM implementation
-- [x] **Swap functionality should be bidirectional** (swaps should be possible to and from Ethereum)
+- [ ] **Preserve hashlock and timelock functionality** for the non-EVM implementation
+- [ ] **Swap functionality should be bidirectional** (swaps should be possible to and from Ethereum)
 - [ ] **Onchain (mainnet or testnet) execution** of token transfers should be presented during the final demo
 
 ### Stretch Goals (Not Hard Requirements)
@@ -55,42 +55,42 @@ Cross-chain systems require users to trust various components. This section expl
 
 ---
 
-## What We Build
-
-### ICP Components (Custom Implementation)
-
-- Rust canister managing HTLC escrows (hashlock + timelock)
-- ICRC-1 token integration
-- Secret revelation & refund logic
-- HTTP outcall logic for Ethereum verification
-- Manual resolver CLI for swap orchestration
-- Canister timer-based refund execution
-
-### Ethereum Components (Reused Infrastructure)
-
-- Existing 1inch Fusion+ smart contracts (no changes)
-- Standard EIP-712 order signatures
-- Ethereum testnet (Sepolia) tokens
-- Ethereum resolver logic performed manually
-
----
+## What We Built [WIP]
 
 ## Development
 
 ### Phase 0 - Understand 1inch Chain Fusion+
 
-- [ ] Read docs
-- [ ] Exchange with people
-- [ ] Try some code
+- [x] Read docs, exchange with people, try code
 
 ### Phase 1 - Implement 1inch Limit Order Protocol
 
-Since the Chain Fusion+, builds on the top of Chain Fusio and the Limit Order Protocol, we decided to implement first the Limit Order Protocol on ICP
+Since Chain Fusion+ builds on top of Chain Fusion and the Limit Order Protocol, we decided to implement the Limit Order Protocol on ICP first.
+
+#### Implementation Choices (MVP Differences from Original)
+
+Our MVP implementation makes two key choices that differ from the original 1inch Limit Order Protocol:
+
+**1. On-Chain Order Placement**
+
+In the _original_ 1inch protocol, **makers place their signed orders off-chain** through **EIP-712 signed messages** to avoid gas costs, with takers paying for execution. _Our implementation_ places orders **on-chain** using ICP's reverse gas model. We took this decision considering that the goal of the 1inch protocol is to make order placing gasless - because of ICP's reverse gas model, placing an order (or any other action performed by the user) is per se gasless on ICP. The canister controller (relayer) pays the cycle costs and applies fees to takers during order execution.
+
+**2. Balance Check at Order Creation**
+
+While the _original_ protocol allows makers to place orders even with insufficient balance (deferring checks to fill time), our implementation verifies balance at order creation time. This is possible because ICP enables trustless, free balance queries via ICRC-1 standards. This ensures every order is immediately fillable, prevents spam, and provides better UX through guaranteed order validity.
+
+**3. Whitelist Verification (MVP Simplification)**
+
+For MVP simplicity, our `verify_is_whitelisted()` function always returns true, bypassing the complex taker whitelist management system used in production protocols. This simplifies testing and development while maintaining the architecture for future whitelist implementation.
 
 #### Resources
 
 - Anton Bukov, "Limit Order Protocol presentation" --> https://www.youtube.com/live/DKQJlzJuTqQ?si=uYVrEpZpAcJo0Dtg&t=3252
 - 1inch Limit Order Protocol implementation --> https://github.com/1inch/limit-order-protocol
+
+### Phase 2
+
+### Phase 3
 
 ## Architecture - 1inch Fusion Atomic Swaps Flow
 
