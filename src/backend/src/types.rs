@@ -346,14 +346,26 @@ impl TokenInterface {
     }
 
     /// Check balance of an account using ICRC-1 balance_of method
+    /// NOTE: icrc1_balance_of is a QUERY method, not an UPDATE method
+    /// We use ic_cdk::api::call::call() for query methods, not ic_cdk::call() for update methods
     pub async fn balance_of(&self, account: Principal) -> OrderResult<u64> {
         let account_arg = Account { owner: account, subaccount: None };
 
-        let result: std::result::Result<(u64,), _> =
-            ic_cdk::call(self.canister_id, "icrc1_balance_of", (account_arg,)).await;
+        let result: std::result::Result<(candid::Nat,), _> =
+            ic_cdk::api::call::call(self.canister_id, "icrc1_balance_of", (account_arg,)).await;
 
         match result {
-            Ok((balance,)) => Ok(balance),
+            Ok((balance,)) => {
+                // Convert candid::Nat to u64 (ICRC-1 tokens return nat)
+                match balance.0.try_into() {
+                    Ok(balance_u64) => Ok(balance_u64),
+                    Err(_) => {
+                        let error_msg = "Balance too large for u64".to_string();
+                        track_error("balance_overflow");
+                        Err(OrderError::BalanceCheckFailed(error_msg))
+                    }
+                }
+            }
             Err(e) => {
                 let error_msg = format!("Balance check failed: {:?}", e);
                 track_error("balance_check_failed");
