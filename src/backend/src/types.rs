@@ -2,6 +2,7 @@ use crate::memory::track_error;
 use candid::{CandidType, Deserialize, Principal};
 use icrc_ledger_types::icrc1::account::Account;
 use icrc_ledger_types::icrc1::transfer::{TransferArg, TransferError};
+use icrc_ledger_types::icrc2::transfer_from::{TransferFromArgs, TransferFromError};
 use std::collections::HashMap;
 
 #[derive(CandidType, Deserialize, Clone, Debug)]
@@ -374,19 +375,22 @@ impl TokenInterface {
         }
     }
 
-    /// Transfer tokens using ICRC-1 transfer method
-    pub async fn transfer(&self, _from: Principal, to: Principal, amount: u64) -> OrderResult<u64> {
-        let transfer_arg = TransferArg {
-            from_subaccount: None,
+    /// Transfer tokens using ICRC-2 transfer_from method
+    /// This requires the user to have approved the backend canister to spend their tokens
+    pub async fn transfer(&self, from: Principal, to: Principal, amount: u64) -> OrderResult<u64> {
+        // Use ICRC-2 transfer_from for third-party transfers
+        let transfer_from_args = TransferFromArgs {
+            spender_subaccount: None,
+            from: Account { owner: from, subaccount: None },
             to: Account { owner: to, subaccount: None },
-            amount: amount.into(),
+            amount: candid::Nat::from(amount),
             fee: None,
             memo: None,
             created_at_time: None,
         };
 
-        let result: std::result::Result<(std::result::Result<u64, TransferError>,), _> =
-            ic_cdk::call(self.canister_id, "icrc1_transfer", (transfer_arg,)).await;
+        let result: std::result::Result<(std::result::Result<u64, TransferFromError>,), _> =
+            ic_cdk::call(self.canister_id, "icrc2_transfer_from", (transfer_from_args,)).await;
 
         match result {
             Ok((Ok(block_index),)) => Ok(block_index),

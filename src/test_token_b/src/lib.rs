@@ -1,22 +1,18 @@
-use candid::{CandidType, Deserialize, Principal};
+use candid::Principal;
 use ic_cdk::{caller, query, update};
 use icrc_ledger_types::icrc1::account::Account;
 use icrc_ledger_types::icrc1::transfer::{TransferArg, TransferError};
+use icrc_ledger_types::icrc2::approve::{ApproveArgs, ApproveError};
+use icrc_ledger_types::icrc2::transfer_from::{TransferFromArgs, TransferFromError};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-// ICRC-1 Token Implementation
-#[derive(CandidType, Deserialize, Clone, Debug)]
-pub struct TransferResult {
-    pub ok: Option<u64>,
-    pub err: Option<TransferError>,
-}
-
-// Using TransferError from icrc_ledger_types instead of custom definition
+// ICRC-1 Token Implementation with ICRC-2 Support
 
 // Storage
 thread_local! {
     static BALANCES: RefCell<HashMap<Principal, u128>> = RefCell::new(HashMap::new());
+    static ALLOWANCES: RefCell<HashMap<(Principal, Principal), u128>> = RefCell::new(HashMap::new());
     static TOTAL_SUPPLY: RefCell<u128> = RefCell::new(1_000_000_000_000); // 10,000 tokens with 8 decimals
 }
 
@@ -85,7 +81,7 @@ pub fn icrc1_balance_of(account: Account) -> u128 {
 }
 
 #[update]
-pub async fn icrc1_transfer(args: TransferArg) -> TransferResult {
+pub async fn icrc1_transfer(args: TransferArg) -> std::result::Result<u64, TransferError> {
     // Simple transfer implementation for testing
     let from = caller();
     let to = args.to.owner;
@@ -96,22 +92,16 @@ pub async fn icrc1_transfer(args: TransferArg) -> TransferResult {
 
         let from_balance = balances.get(&from).copied().unwrap_or(0);
         if from_balance < amount {
-            return TransferResult {
-                ok: None,
-                err: Some(TransferError::InsufficientFunds {
-                    balance: candid::Nat::from(from_balance),
-                }),
-            };
+            return Err(TransferError::InsufficientFunds {
+                balance: candid::Nat::from(from_balance),
+            });
         }
 
         // Update balances
         *balances.entry(from).or_insert(0) -= amount;
         *balances.entry(to).or_insert(0) += amount;
 
-        TransferResult {
-            ok: Some(1), // Mock transfer ID
-            err: None,
-        }
+        Ok(1u64) // Mock transfer ID
     })
 }
 
@@ -136,10 +126,105 @@ pub async fn mint_for_caller(amount: u128) -> Result<u64, String> {
     })
 }
 
-// Health check endpoint
+#[update]
+pub async fn transfer_from_backend(
+    from: Principal,
+    to: Principal,
+    amount: u128,
+) -> Result<u64, String> {
+    // Only allow backend canister to call this
+    let backend_principal = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai").unwrap();
+    if caller() != backend_principal {
+        return Err("Unauthorized".to_string());
+    }
+
+    BALANCES.with(|balances| {
+        let mut balances = balances.borrow_mut();
+
+        let from_balance = balances.get(&from).copied().unwrap_or(0);
+        if from_balance < amount {
+            return Err("InsufficientFunds".to_string());
+        }
+
+        // Update balances
+        *balances.entry(from).or_insert(0) -= amount;
+        *balances.entry(to).or_insert(0) += amount;
+
+        Ok(1u64) // Return block index
+    })
+}
+
+// ICRC-2 Methods
+#[update]
+pub async fn icrc2_approve(args: ApproveArgs) -> Result<u64, ApproveError> {
+    let owner = caller();
+    let spender = args.spender.owner;
+    let amount = args.amount.0.try_into().unwrap_or(0u128);
+
+    ALLOWANCES.with(|allowances| {
+        let mut allowances = allowances.borrow_mut();
+        allowances.insert((owner, spender), amount);
+        Ok(1u64) // Return block index
+    })
+}
+
 #[query]
-pub fn ping() -> String {
-    "pong".to_string()
+pub fn icrc2_allowance(
+    args: icrc_ledger_types::icrc2::allowance::AllowanceArgs,
+) -> Result<icrc_ledger_types::icrc2::allowance::Allowance, String> {
+    let owner = args.account.owner;
+    let spender = args.spender.owner;
+
+    ALLOWANCES.with(|allowances| {
+        let allowance = allowances.borrow().get(&(owner, spender)).copied().unwrap_or(0);
+        Ok(icrc_ledger_types::icrc2::allowance::Allowance {
+            allowance: candid::Nat::from(allowance),
+            expires_at: None,
+        })
+    })
+}
+
+#[update]
+pub async fn icrc2_transfer_from(args: TransferFromArgs) -> Result<u64, TransferFromError> {
+    let spender = caller();
+    let from = args.from.owner;
+    let to = args.to.owner;
+    let amount = args.amount.0.try_into().unwrap_or(0u128);
+
+    // Check allowance
+    let allowance = ALLOWANCES
+        .with(|allowances| allowances.borrow().get(&(from, spender)).copied().unwrap_or(0));
+
+    if allowance < amount {
+        return Err(TransferFromError::InsufficientAllowance {
+            allowance: candid::Nat::from(allowance),
+        });
+    }
+
+    // Check balance
+    let from_balance = BALANCES.with(|balances| balances.borrow().get(&from).copied().unwrap_or(0));
+
+    if from_balance < amount {
+        return Err(TransferFromError::InsufficientFunds {
+            balance: candid::Nat::from(from_balance),
+        });
+    }
+
+    // Execute transfer
+    BALANCES.with(|balances| {
+        let mut balances = balances.borrow_mut();
+        *balances.entry(from).or_insert(0) -= amount;
+        *balances.entry(to).or_insert(0) += amount;
+    });
+
+    // Update allowance
+    ALLOWANCES.with(|allowances| {
+        let mut allowances = allowances.borrow_mut();
+        let current_allowance = allowances.get(&(from, spender)).copied().unwrap_or(0);
+        allowances.insert((from, spender), current_allowance - amount);
+    });
+
+    Ok(1u64) // Return block index
 }
 
 // Initialize function
