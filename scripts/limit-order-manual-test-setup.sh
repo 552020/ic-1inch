@@ -74,10 +74,16 @@ dfx identity use default
 DEFAULT_PRINCIPAL=$(dfx identity get-principal)
 print_success "Default principal: $DEFAULT_PRINCIPAL"
 
-# Generate a valid test principal for taker asset
-print_status "Generating valid test principal for taker asset..."
-TEST_TAKER_ASSET=$(dfx identity get-principal --identity default)
-print_success "Generated test taker asset principal: $TEST_TAKER_ASSET"
+# Use test_token canister for taker asset (local testing)
+print_status "Getting test_token canister ID for taker asset..."
+if dfx canister id test_token &> /dev/null; then
+    TEST_TAKER_ASSET=$(dfx canister id test_token)
+    print_success "Using test_token canister: $TEST_TAKER_ASSET"
+else
+    print_warning "test_token canister not found, using ckETH principal for testnet"
+    TEST_TAKER_ASSET="ss2fx-dyaaa-aaaar-qacoq-cai"
+    print_success "Using ckETH Ledger principal: $TEST_TAKER_ASSET"
+fi
 
 # Create environment file
 ENV_FILE=".env.test"
@@ -93,7 +99,7 @@ export TAKER_PRINCIPAL="$TAKER_PRINCIPAL"
 export DEFAULT_PRINCIPAL="$DEFAULT_PRINCIPAL"
 
 
-# Test Token Principals
+# Real Token Principals (ICP + ckETH)
 export TEST_MAKER_ASSET="aaaaa-aa"
 export TEST_TAKER_ASSET="$TEST_TAKER_ASSET"
 
