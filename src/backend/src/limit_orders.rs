@@ -128,8 +128,15 @@ pub fn validate_create_order_authorization(caller: Principal) -> OrderResult<()>
 
 /// Validate that the caller is authorized to cancel an order
 pub fn validate_cancel_order_authorization(caller: Principal, order: &Order) -> OrderResult<()> {
+    // Only the maker can cancel their own orders
     if caller != order.maker {
         track_error("unauthorized_cancel");
+        return Err(OrderError::Unauthorized);
+    }
+
+    // Additional check: reject anonymous callers
+    if caller == Principal::anonymous() {
+        track_error("anonymous_cancel_attempt");
         return Err(OrderError::Unauthorized);
     }
 
@@ -262,32 +269,52 @@ pub async fn create_order(
 }
 
 /// Cancel an existing order
+///
+/// This function implements a comprehensive order cancellation process with:
+/// - Thorough validation and authorization checks
+/// - Detailed error reporting for different failure scenarios
+/// - Proper state management and statistics tracking
 pub fn cancel_order(order_id: OrderId) -> OrderResult<()> {
     let caller = caller();
 
-    // Get order
-    let order = get_order(order_id).ok_or(OrderError::OrderNotFound)?;
+    // Phase 1: Order retrieval and basic validation
+    let order = get_order(order_id).ok_or_else(|| {
+        track_error("cancel_order_not_found");
+        OrderError::OrderNotFound
+    })?;
 
-    // Validate authorization
+    // Phase 2: Authorization validation
     validate_cancel_order_authorization(caller, &order)?;
 
-    // Check if order is still active
+    // Phase 3: Order state validation with detailed error reporting
     if !is_order_active(order_id) {
-        // Determine specific reason
+        // Check specific reason for inactivity
         if order.expiration <= time() {
             track_error("cancel_expired_order");
             return Err(OrderError::OrderExpired);
-        } else {
-            track_error("cancel_inactive_order");
+        }
+
+        // Check if already filled
+        let is_filled = with_filled_orders_read(|filled| filled.contains(&order_id));
+        if is_filled {
+            track_error("cancel_already_filled_order");
             return Err(OrderError::OrderAlreadyFilled);
         }
+
+        // Check if already cancelled
+        let is_cancelled = with_cancelled_orders_read(|cancelled| cancelled.contains(&order_id));
+        if is_cancelled {
+            track_error("cancel_already_cancelled_order");
+            return Err(OrderError::OrderCancelled);
+        }
+
+        // If we reach here, something unexpected happened
+        track_error("cancel_inactive_order_unknown");
+        return Err(OrderError::OrderAlreadyFilled);
     }
 
-    // Mark as cancelled
-    mark_order_cancelled(order_id);
-
-    // Track statistics
-    track_order_cancelled();
+    // Phase 4: Execute cancellation
+    update_order_cancelled_state(order_id);
 
     Ok(())
 }
@@ -449,6 +476,88 @@ fn update_order_filled_state(order_id: OrderId, order: &Order) {
     // Track statistics for both assets
     track_order_filled(order.maker_asset, order.making_amount);
     track_order_filled(order.taker_asset, order.taking_amount);
+}
+
+/// Update order state and statistics after successful cancellation
+/// This function ensures atomic state updates
+fn update_order_cancelled_state(order_id: OrderId) {
+    // Mark order as cancelled
+    mark_order_cancelled(order_id);
+
+    // Track statistics
+    track_order_cancelled();
+}
+
+/// Batch cancel multiple orders by the same maker
+/// This is useful for cancelling multiple orders efficiently
+pub fn batch_cancel_orders(order_ids: Vec<OrderId>) -> Vec<(OrderId, OrderResult<()>)> {
+    let caller = caller();
+    let mut results = Vec::new();
+
+    for order_id in order_ids {
+        let result = cancel_order_internal(order_id, caller);
+        results.push((order_id, result));
+    }
+
+    results
+}
+
+/// Internal cancel function that accepts caller as parameter
+/// This allows for batch operations without repeated caller() calls
+fn cancel_order_internal(order_id: OrderId, caller: Principal) -> OrderResult<()> {
+    // Phase 1: Order retrieval and basic validation
+    let order = get_order(order_id).ok_or_else(|| {
+        track_error("cancel_order_not_found");
+        OrderError::OrderNotFound
+    })?;
+
+    // Phase 2: Authorization validation
+    validate_cancel_order_authorization(caller, &order)?;
+
+    // Phase 3: Order state validation
+    if !is_order_active(order_id) {
+        if order.expiration <= time() {
+            track_error("cancel_expired_order");
+            return Err(OrderError::OrderExpired);
+        }
+
+        let is_filled = with_filled_orders_read(|filled| filled.contains(&order_id));
+        if is_filled {
+            track_error("cancel_already_filled_order");
+            return Err(OrderError::OrderAlreadyFilled);
+        }
+
+        let is_cancelled = with_cancelled_orders_read(|cancelled| cancelled.contains(&order_id));
+        if is_cancelled {
+            track_error("cancel_already_cancelled_order");
+            return Err(OrderError::OrderCancelled);
+        }
+
+        track_error("cancel_inactive_order_unknown");
+        return Err(OrderError::OrderAlreadyFilled);
+    }
+
+    // Phase 4: Execute cancellation
+    update_order_cancelled_state(order_id);
+
+    Ok(())
+}
+
+/// Check if an order can be cancelled
+/// This is useful for UI validation before attempting cancellation
+pub fn can_cancel_order(order_id: OrderId, caller: Principal) -> bool {
+    // Get order
+    let Some(order) = get_order(order_id) else {
+        return false;
+    };
+
+    // Check authorization
+    if caller != order.maker || caller == Principal::anonymous() {
+        return false;
+    }
+
+    // Check if order is still active
+    is_order_active(order_id)
 }
 
 // ============================================================================
