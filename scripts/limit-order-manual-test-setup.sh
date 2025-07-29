@@ -89,6 +89,16 @@ else
     print_success "Using default test token IDs"
 fi
 
+# Get backend canister ID
+print_status "Getting backend canister ID..."
+if dfx canister id backend &> /dev/null; then
+    BACKEND_CANISTER_ID=$(dfx canister id backend)
+    print_success "backend: $BACKEND_CANISTER_ID"
+else
+    print_warning "Backend canister not found - deploy with: ./scripts/deploy-local.sh"
+    BACKEND_CANISTER_ID=""
+fi
+
 # Create environment file
 ENV_FILE=".env.test"
 print_status "Creating environment file: $ENV_FILE"
@@ -107,8 +117,10 @@ export DEFAULT_PRINCIPAL="$DEFAULT_PRINCIPAL"
 export TEST_TOKEN_A="$TEST_TOKEN_A"
 export TEST_TOKEN_B="$TEST_TOKEN_B"
 
+# Backend Canister ID
+export BACKEND_CANISTER_ID="$BACKEND_CANISTER_ID"
+
 # Canister IDs (will be populated after deployment)
-export BACKEND_CANISTER_ID=""
 export FRONTEND_CANISTER_ID=""
 EOF
 
