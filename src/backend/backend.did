@@ -58,16 +58,29 @@ type Order = record {
 type OrderError = variant {
   InvalidAssetPair;
   OrderCancelled;
+  BalanceCheckFailed : text;
   InvalidAmount;
+  TokenNotSupported : text;
+  MemoryError : text;
+  OrderInactive;
+  OrderCreationRateLimited;
+  NotOrderMaker;
   SystemError : text;
   OrderNotFound;
   InsufficientBalance;
+  InvalidPrincipal;
   OrderExpired;
+  InvalidReceiver;
   Unauthorized;
   OrderAlreadyFilled;
   InvalidExpiration;
+  ConcurrencyError : text;
+  TooManyOrders;
   TokenCallFailed : text;
   TransferFailed : text;
+  InvalidOrderId;
+  SystemOverloaded;
+  AnonymousCaller;
 };
 type OrderMetadata = record {
   hashlock : opt blob;
