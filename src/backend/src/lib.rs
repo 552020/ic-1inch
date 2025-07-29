@@ -173,7 +173,6 @@ async fn create_order(
     making_amount: u64,
     taking_amount: u64,
     expiration: u64,
-    allowed_taker: Option<candid::Principal>,
 ) -> Result<OrderId, OrderError> {
     limit_orders::create_order(
         receiver,
@@ -182,7 +181,6 @@ async fn create_order(
         making_amount,
         taking_amount,
         expiration,
-        allowed_taker,
     )
     .await
 }

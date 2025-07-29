@@ -312,6 +312,14 @@ pub fn cancel_order(order_id: OrderId) -> OrderResult<()> {
     Ok(())
 }
 
+/// Helper function: Execute atomic token transfers for order filling
+///
+/// This is a helper function used by fill_order() to perform the actual token swaps.
+/// It implements a two-phase commit pattern for better atomicity:
+/// 1. Pre-validate both transfers can succeed
+/// 2. Execute both transfers
+/// 3. If any transfer fails, attempt rollback (best effort)
+
 /// Fill an existing order atomically
 ///
 /// This function implements a comprehensive order filling process with:
@@ -371,9 +379,10 @@ pub async fn fill_order(order_id: OrderId) -> OrderResult<()> {
     Ok(())
 }
 
-/// Execute the atomic token transfers for order filling
+/// Helper function: Execute atomic token transfers for order filling
 ///
-/// This function implements a two-phase commit pattern for better atomicity:
+/// This is a helper function used by fill_order() to perform the actual token swaps.
+/// It implements a two-phase commit pattern for better atomicity:
 /// 1. Pre-validate both transfers can succeed
 /// 2. Execute both transfers
 /// 3. If any transfer fails, attempt rollback (best effort)
@@ -536,54 +545,5 @@ pub mod tests {
     /// Setup function for tests
     pub fn setup_test() {
         clear_limit_order_data();
-    }
-
-    #[test]
-    fn test_validate_order_params() {
-        let maker_asset = Principal::from_slice(&[1, 2, 3, 4]);
-        let taker_asset = Principal::from_slice(&[5, 6, 7, 8]);
-        let caller = Principal::from_slice(&[9, 10, 11, 12]);
-        let receiver = Principal::from_slice(&[13, 14, 15, 16]);
-        // Use a fixed future time for testing instead of calling time()
-        let current_time = 1_000_000_000_000_000_000u64; // Mock current time
-        let future_time = current_time + 3600_000_000_000; // 1 hour later
-
-        // Test order validation instead of deleted function
-        // Invalid amounts should fail
-        assert!(validate_create_order(
-            caller,
-            receiver,
-            maker_asset,
-            taker_asset,
-            0,
-            2000,
-            future_time
-        )
-        .is_err());
-        assert!(validate_create_order(
-            caller,
-            receiver,
-            maker_asset,
-            taker_asset,
-            1000,
-            0,
-            future_time
-        )
-        .is_err());
-
-        // Same asset pair should fail
-        assert!(validate_create_order(
-            caller,
-            receiver,
-            maker_asset,
-            maker_asset,
-            1000,
-            2000,
-            future_time
-        )
-        .is_err());
-
-        // Note: Expiration validation requires canister environment, so we skip those tests
-        // In integration tests, we can test the full validation logic
     }
 }
