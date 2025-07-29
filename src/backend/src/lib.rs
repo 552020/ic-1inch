@@ -230,4 +230,25 @@ fn get_system_stats() -> SystemStats {
     limit_orders::get_system_statistics()
 }
 
+// ============================================================================
+// CANISTER UPGRADE HOOKS
+// ============================================================================
+
+/// Pre-upgrade hook: Save state to stable memory
+#[ic_cdk::pre_upgrade]
+fn pre_upgrade() {
+    let state = memory::serialize_limit_order_state();
+    ic_cdk::storage::stable_save((state,)).expect("Failed to save state");
+}
+
+/// Post-upgrade hook: Restore state from stable memory
+#[ic_cdk::post_upgrade]
+fn post_upgrade() {
+    let (state,): ((Vec<(OrderId, Order)>, Vec<OrderId>, Vec<OrderId>, u64, SystemStats),) =
+        ic_cdk::storage::stable_restore().expect("Failed to restore state");
+
+    let (orders, filled, cancelled, counter, stats) = state;
+    memory::deserialize_limit_order_state(orders, filled, cancelled, counter, stats);
+}
+
 ic_cdk::export_candid!();

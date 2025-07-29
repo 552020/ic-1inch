@@ -87,11 +87,6 @@ pub enum TimelockStatus {
 
 // Result types for different operations
 pub type Result<T> = std::result::Result<T, EscrowError>;
-pub type EscrowResult = Result<Escrow>;
-pub type SourceEscrowResult = Result<SourceEscrow>;
-pub type DestinationEscrowResult = Result<DestinationEscrow>;
-pub type StringResult = Result<String>;
-pub type TimelockStatusResult = Result<TimelockStatus>;
 
 impl std::fmt::Display for EscrowError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -119,7 +114,6 @@ pub type OrderId = u64;
 
 /// System constants for limit order protocol
 pub const MAX_ACTIVE_ORDERS: usize = 10_000;
-pub const MAX_HISTORICAL_ORDERS: usize = 100_000;
 pub const MAX_EXPIRATION_DAYS: u64 = 30;
 
 /// Core limit order structure
@@ -221,10 +215,6 @@ pub struct CreateOrderParams {
 
 // Result types for limit order operations
 pub type OrderResult<T> = std::result::Result<T, OrderError>;
-pub type OrderQueryResult = OrderResult<Order>;
-pub type OrderIdResult = OrderResult<OrderId>;
-pub type OrderListResult = OrderResult<Vec<Order>>;
-pub type SystemStatsResult = OrderResult<SystemStats>;
 
 impl std::fmt::Display for OrderError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -314,33 +304,6 @@ impl Order {
         cancelled_orders: &std::collections::HashSet<OrderId>,
     ) -> bool {
         self.get_state(filled_orders, cancelled_orders) == OrderState::Active
-    }
-
-    /// Validate order parameters
-    pub fn validate(&self) -> OrderResult<()> {
-        // Amount validation
-        if self.making_amount == 0 || self.taking_amount == 0 {
-            return Err(OrderError::InvalidAmount);
-        }
-
-        // Asset pair validation
-        if self.maker_asset == self.taker_asset {
-            return Err(OrderError::InvalidAssetPair);
-        }
-
-        // Expiration validation
-        let current_time = ic_cdk::api::time();
-        if self.expiration <= current_time {
-            return Err(OrderError::InvalidExpiration);
-        }
-
-        // Maximum expiration validation (30 days)
-        let max_expiration = current_time + (MAX_EXPIRATION_DAYS * 24 * 3600 * 1_000_000_000);
-        if self.expiration > max_expiration {
-            return Err(OrderError::InvalidExpiration);
-        }
-
-        Ok(())
     }
 }
 
