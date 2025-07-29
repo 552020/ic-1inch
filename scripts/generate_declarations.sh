@@ -11,11 +11,27 @@ echo "🔧 Generating DID files and declarations..."
 echo "📝 Generating DID files..."
 generate-did backend
 
+# Build test tokens to generate their .did files
+echo "📝 Building test tokens to generate .did files..."
+cargo build --target wasm32-unknown-unknown --release --package test_token_a
+cargo build --target wasm32-unknown-unknown --release --package test_token_b
+
 # Generate TypeScript declarations for Rust canisters only
 echo "📝 Generating TypeScript declarations..."
 dfx generate backend
-dfx generate test_token_a
-dfx generate test_token_b
+
+# Generate declarations for test tokens if .did files exist
+if [ -f "src/test_token_a/test_token_a.did" ]; then
+    dfx generate test_token_a
+else
+    echo "⚠️  Skipping test_token_a declarations - .did file not found"
+fi
+
+if [ -f "src/test_token_b/test_token_b.did" ]; then
+    dfx generate test_token_b
+else
+    echo "⚠️  Skipping test_token_b declarations - .did file not found"
+fi
 
 echo "✅ Declarations generated successfully!"
 echo "📁 Generated files:"
