@@ -9,7 +9,9 @@ use crate::memory::{
     mark_order_filled, track_error, track_order_cancelled, track_order_created, track_order_filled,
     with_cancelled_orders_read, with_filled_orders_read, with_orders,
 };
-use crate::types::{Order, OrderError, OrderId, OrderResult, SystemStats};
+use crate::types::{
+    Order, OrderError, OrderId, OrderResult, SystemStats, MAX_ACTIVE_ORDERS, MAX_EXPIRATION_DAYS,
+};
 
 // ============================================================================
 // ICRC TOKEN INTEGRATION
@@ -74,10 +76,10 @@ impl TokenInterface {
 }
 
 // ============================================================================
-// VALIDATION FUNCTIONS
+// COMPREHENSIVE VALIDATION FUNCTIONS
 // ============================================================================
 
-/// Validate order creation parameters
+/// Validate order creation parameters (legacy function - use comprehensive version)
 pub fn validate_order_params(
     maker_asset: Principal,
     taker_asset: Principal,
@@ -85,31 +87,10 @@ pub fn validate_order_params(
     taking_amount: u64,
     expiration: u64,
 ) -> OrderResult<()> {
-    // Amount validation
-    if making_amount == 0 || taking_amount == 0 {
-        track_error("invalid_amount");
-        return Err(OrderError::InvalidAmount);
-    }
-
-    // Asset pair validation
-    if maker_asset == taker_asset {
-        track_error("invalid_asset_pair");
-        return Err(OrderError::InvalidAssetPair);
-    }
-
-    // Expiration validation
-    let current_time = time();
-    if expiration <= current_time {
-        track_error("invalid_expiration");
-        return Err(OrderError::InvalidExpiration);
-    }
-
-    // Maximum expiration validation (30 days)
-    let max_expiration = current_time + (30 * 24 * 3600 * 1_000_000_000);
-    if expiration > max_expiration {
-        track_error("expiration_too_far");
-        return Err(OrderError::InvalidExpiration);
-    }
+    // Use comprehensive validation functions
+    validate_asset_pair(maker_asset, taker_asset)?;
+    validate_token_amounts(making_amount, taking_amount)?;
+    validate_expiration_timestamp(expiration)?;
 
     Ok(())
 }
@@ -210,6 +191,226 @@ pub async fn validate_order_fill(order: &Order, taker: Principal) -> OrderResult
     Ok(())
 }
 
+/// Validate Principal is not anonymous and properly formatted
+pub fn validate_principal(principal: Principal, field_name: &str) -> OrderResult<()> {
+    if principal == Principal::anonymous() {
+        track_error(&format!("invalid_principal_{}", field_name));
+        return Err(OrderError::AnonymousCaller);
+    }
+
+    // Additional validation could be added here for specific principal formats
+    Ok(())
+}
+
+/// Validate order ID is within valid range
+pub fn validate_order_id(order_id: OrderId) -> OrderResult<()> {
+    if order_id == 0 {
+        track_error("invalid_order_id_zero");
+        return Err(OrderError::InvalidOrderId);
+    }
+
+    // Check if order ID is reasonable (not too large)
+    if order_id > u64::MAX / 2 {
+        track_error("invalid_order_id_too_large");
+        return Err(OrderError::InvalidOrderId);
+    }
+
+    Ok(())
+}
+
+/// Validate token amounts are within reasonable bounds
+pub fn validate_token_amounts(making_amount: u64, taking_amount: u64) -> OrderResult<()> {
+    // Check for zero amounts
+    if making_amount == 0 {
+        track_error("invalid_making_amount_zero");
+        return Err(OrderError::InvalidAmount);
+    }
+
+    if taking_amount == 0 {
+        track_error("invalid_taking_amount_zero");
+        return Err(OrderError::InvalidAmount);
+    }
+
+    // Check for reasonable maximum amounts (prevent overflow)
+    const MAX_TOKEN_AMOUNT: u64 = u64::MAX / 1000; // Leave room for calculations
+
+    if making_amount > MAX_TOKEN_AMOUNT {
+        track_error("invalid_making_amount_too_large");
+        return Err(OrderError::InvalidAmount);
+    }
+
+    if taking_amount > MAX_TOKEN_AMOUNT {
+        track_error("invalid_taking_amount_too_large");
+        return Err(OrderError::InvalidAmount);
+    }
+
+    Ok(())
+}
+
+/// Validate expiration timestamp
+pub fn validate_expiration_timestamp(expiration: u64) -> OrderResult<()> {
+    let current_time = time();
+
+    // Check if expiration is in the past
+    if expiration <= current_time {
+        track_error("invalid_expiration_past");
+        return Err(OrderError::InvalidExpiration);
+    }
+
+    // Check if expiration is too far in the future (30 days max)
+    let max_expiration = current_time + (MAX_EXPIRATION_DAYS * 24 * 3600 * 1_000_000_000);
+    if expiration > max_expiration {
+        track_error("invalid_expiration_too_far");
+        return Err(OrderError::InvalidExpiration);
+    }
+
+    // Check if expiration is too soon (minimum 1 minute)
+    let min_expiration = current_time + (60 * 1_000_000_000); // 1 minute
+    if expiration < min_expiration {
+        track_error("invalid_expiration_too_soon");
+        return Err(OrderError::InvalidExpiration);
+    }
+
+    Ok(())
+}
+
+/// Validate asset pair for trading
+pub fn validate_asset_pair(maker_asset: Principal, taker_asset: Principal) -> OrderResult<()> {
+    // Assets cannot be the same
+    if maker_asset == taker_asset {
+        track_error("invalid_asset_pair_same");
+        return Err(OrderError::InvalidAssetPair);
+    }
+
+    // Validate both assets are not anonymous
+    validate_principal(maker_asset, "maker_asset")?;
+    validate_principal(taker_asset, "taker_asset")?;
+
+    // Additional validation could be added here for supported tokens
+    Ok(())
+}
+
+/// Check system limits and DoS protection
+pub fn validate_system_limits(caller: Principal) -> OrderResult<()> {
+    // Check total number of active orders
+    let active_order_count = get_active_orders().len();
+    if active_order_count >= MAX_ACTIVE_ORDERS {
+        track_error("system_max_orders_reached");
+        return Err(OrderError::TooManyOrders);
+    }
+
+    // Check orders per maker (prevent spam)
+    let maker_orders = get_orders_by_maker(caller);
+    const MAX_ORDERS_PER_MAKER: usize = 100;
+    if maker_orders.len() >= MAX_ORDERS_PER_MAKER {
+        track_error("maker_max_orders_reached");
+        return Err(OrderError::TooManyOrders);
+    }
+
+    Ok(())
+}
+
+/// Comprehensive order creation validation
+pub fn validate_create_order_comprehensive(
+    caller: Principal,
+    receiver: Principal,
+    maker_asset: Principal,
+    taker_asset: Principal,
+    making_amount: u64,
+    taking_amount: u64,
+    expiration: u64,
+    allowed_taker: Option<Principal>,
+) -> OrderResult<()> {
+    // Validate caller
+    validate_principal(caller, "caller")?;
+
+    // Validate receiver
+    validate_principal(receiver, "receiver")?;
+
+    // Validate asset pair
+    validate_asset_pair(maker_asset, taker_asset)?;
+
+    // Validate amounts
+    validate_token_amounts(making_amount, taking_amount)?;
+
+    // Validate expiration
+    validate_expiration_timestamp(expiration)?;
+
+    // Validate allowed_taker if specified
+    if let Some(taker) = allowed_taker {
+        validate_principal(taker, "allowed_taker")?;
+    }
+
+    // Check system limits
+    validate_system_limits(caller)?;
+
+    Ok(())
+}
+
+/// Comprehensive order fill validation
+pub fn validate_fill_order_comprehensive(caller: Principal, order: &Order) -> OrderResult<()> {
+    // Validate caller
+    validate_principal(caller, "caller")?;
+
+    // Validate order ID
+    validate_order_id(order.id)?;
+
+    // Check if order is active
+    if !is_order_active(order.id) {
+        if order.expiration <= time() {
+            track_error("fill_expired_order");
+            return Err(OrderError::OrderExpired);
+        } else {
+            track_error("fill_inactive_order");
+            return Err(OrderError::OrderInactive);
+        }
+    }
+
+    // Check allowed_taker restriction
+    if let Some(allowed_taker) = order.allowed_taker {
+        if caller != allowed_taker {
+            track_error("fill_not_allowed_taker");
+            return Err(OrderError::Unauthorized);
+        }
+    }
+
+    // Prevent self-filling
+    if caller == order.maker {
+        track_error("fill_self_order");
+        return Err(OrderError::Unauthorized);
+    }
+
+    Ok(())
+}
+
+/// Comprehensive order cancellation validation
+pub fn validate_cancel_order_comprehensive(caller: Principal, order: &Order) -> OrderResult<()> {
+    // Validate caller
+    validate_principal(caller, "caller")?;
+
+    // Validate order ID
+    validate_order_id(order.id)?;
+
+    // Only maker can cancel
+    if caller != order.maker {
+        track_error("cancel_not_maker");
+        return Err(OrderError::NotOrderMaker);
+    }
+
+    // Check if order can be cancelled
+    if !is_order_active(order.id) {
+        if order.expiration <= time() {
+            track_error("cancel_expired_order");
+            return Err(OrderError::OrderExpired);
+        } else {
+            track_error("cancel_inactive_order");
+            return Err(OrderError::OrderInactive);
+        }
+    }
+
+    Ok(())
+}
+
 // ============================================================================
 // ORDER MANAGEMENT FUNCTIONS
 // ============================================================================
@@ -226,11 +427,17 @@ pub async fn create_order(
 ) -> OrderResult<OrderId> {
     let caller = caller();
 
-    // Validate authorization
-    validate_create_order_authorization(caller)?;
-
-    // Validate parameters
-    validate_order_params(maker_asset, taker_asset, making_amount, taking_amount, expiration)?;
+    // Comprehensive validation
+    validate_create_order_comprehensive(
+        caller,
+        receiver,
+        maker_asset,
+        taker_asset,
+        making_amount,
+        taking_amount,
+        expiration,
+        allowed_taker,
+    )?;
 
     // Check maker has sufficient balance (skip in test mode with mock tokens)
     if maker_asset != Principal::management_canister()

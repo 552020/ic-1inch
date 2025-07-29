@@ -162,23 +162,38 @@ pub enum OrderError {
     InvalidAmount,
     InvalidExpiration,
     InvalidAssetPair,
+    InvalidReceiver,
+    InvalidOrderId,
+    InvalidPrincipal,
 
     // State Errors
     OrderNotFound,
     OrderAlreadyFilled,
     OrderCancelled,
     OrderExpired,
+    OrderInactive,
 
     // Authorization Errors
     Unauthorized,
     InsufficientBalance,
+    AnonymousCaller,
+    NotOrderMaker,
 
     // Token Integration Errors
     TokenCallFailed(String),
     TransferFailed(String),
+    BalanceCheckFailed(String),
+    TokenNotSupported(String),
 
     // System Errors
     SystemError(String),
+    MemoryError(String),
+    ConcurrencyError(String),
+
+    // Rate Limiting & DoS Protection
+    TooManyOrders,
+    OrderCreationRateLimited,
+    SystemOverloaded,
 }
 
 /// System statistics for monitoring
@@ -213,18 +228,53 @@ pub type SystemStatsResult = OrderResult<SystemStats>;
 impl std::fmt::Display for OrderError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            // Validation Errors
             OrderError::InvalidAmount => write!(f, "Amount must be greater than zero"),
-            OrderError::InvalidExpiration => write!(f, "Expiration must be in the future"),
+            OrderError::InvalidExpiration => {
+                write!(f, "Expiration must be in the future and within allowed range")
+            }
             OrderError::InvalidAssetPair => write!(f, "Maker and taker assets cannot be the same"),
+            OrderError::InvalidReceiver => write!(f, "Invalid receiver principal"),
+            OrderError::InvalidOrderId => write!(f, "Invalid order ID"),
+            OrderError::InvalidPrincipal => write!(f, "Invalid principal format"),
+
+            // State Errors
             OrderError::OrderNotFound => write!(f, "Order not found"),
             OrderError::OrderAlreadyFilled => write!(f, "Order has already been filled"),
             OrderError::OrderCancelled => write!(f, "Order has been cancelled"),
             OrderError::OrderExpired => write!(f, "Order has expired"),
+            OrderError::OrderInactive => write!(f, "Order is not active"),
+
+            // Authorization Errors
             OrderError::Unauthorized => write!(f, "Unauthorized to perform this operation"),
             OrderError::InsufficientBalance => write!(f, "Insufficient token balance"),
+            OrderError::AnonymousCaller => write!(f, "Anonymous callers are not allowed"),
+            OrderError::NotOrderMaker => {
+                write!(f, "Only the order maker can perform this operation")
+            }
+
+            // Token Integration Errors
             OrderError::TokenCallFailed(msg) => write!(f, "Token canister call failed: {}", msg),
             OrderError::TransferFailed(msg) => write!(f, "Token transfer failed: {}", msg),
+            OrderError::BalanceCheckFailed(msg) => write!(f, "Balance check failed: {}", msg),
+            OrderError::TokenNotSupported(msg) => write!(f, "Token not supported: {}", msg),
+
+            // System Errors
             OrderError::SystemError(msg) => write!(f, "System error: {}", msg),
+            OrderError::MemoryError(msg) => write!(f, "Memory error: {}", msg),
+            OrderError::ConcurrencyError(msg) => write!(f, "Concurrency error: {}", msg),
+
+            // Rate Limiting & DoS Protection
+            OrderError::TooManyOrders => write!(
+                f,
+                "Too many active orders. Please cancel some orders before creating new ones"
+            ),
+            OrderError::OrderCreationRateLimited => {
+                write!(f, "Order creation rate limited. Please wait before creating another order")
+            }
+            OrderError::SystemOverloaded => {
+                write!(f, "System is currently overloaded. Please try again later")
+            }
         }
     }
 }

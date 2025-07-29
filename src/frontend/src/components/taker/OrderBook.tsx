@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { backend } from "../../../declarations/backend";
 import {
   Card,
   CardContent,
@@ -379,7 +378,17 @@ export function OrderBook({
                     <TableCell className="text-right">
                       <Button
                         size="sm"
-                        onClick={() => onFillOrder?.(order.id)}
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `Fill order for ${formatAmount(
+                                order.making_amount
+                              )} ${order.maker_asset}?`
+                            )
+                          ) {
+                            onFillOrder?.(order.id);
+                          }
+                        }}
                         disabled={externalLoading}
                       >
                         Fill Order
