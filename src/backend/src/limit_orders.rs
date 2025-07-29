@@ -5,7 +5,7 @@ use ic_cdk::caller;
 use crate::memory::{
     generate_order_id, get_active_orders, get_order, is_order_active, mark_order_cancelled,
     mark_order_filled, track_error, track_order_cancelled, track_order_created, track_order_filled,
-    with_cancelled_orders_read, with_filled_orders_read, with_orders, with_taker_whitelist_read,
+    with_cancelled_orders_read, with_filled_orders_read, with_orders,
 };
 use crate::types::{
     Order, OrderError, OrderId, OrderResult, SystemStats, TokenInterface, MAX_ACTIVE_ORDERS,
@@ -68,7 +68,7 @@ pub async fn check_taker_balance(
 
 /// Check if taker has sufficient balance for protocol fees (MVP - always returns true)
 /// TODO: Implement actual balance checking when fee enforcement is enabled
-pub fn check_taker_fee_balance(taker: Principal) -> OrderResult<()> {
+pub fn check_taker_fee_balance(_taker: Principal) -> OrderResult<()> {
     // For MVP: Always return true - no fee enforcement yet
     // Future: Check taker's ICP balance against protocol fee requirements
 
@@ -189,7 +189,7 @@ pub fn validate_system_limits(caller: Principal) -> OrderResult<()> {
 
 /// Check if a taker is whitelisted
 /// TODO: Implement proper whitelist checking when we introduce relayer entity
-pub fn is_taker_whitelisted(taker: Principal) -> bool {
+pub fn is_taker_whitelisted(_taker: Principal) -> bool {
     // For MVP: hardcoded true - all takers are allowed
     // Future: Check against actual whitelist and relayer requirements
     true

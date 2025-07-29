@@ -52,7 +52,6 @@ type Order = record {
   created_at : nat64;
   expiration : nat64;
   taker_asset : principal;
-  allowed_taker : opt principal;
   receiver : principal;
 };
 type OrderError = variant {
@@ -64,6 +63,7 @@ type OrderError = variant {
   MemoryError : text;
   OrderInactive;
   OrderCreationRateLimited;
+  TakerNotWhitelisted;
   NotOrderMaker;
   SystemError : text;
   OrderNotFound;
@@ -128,15 +128,9 @@ service : {
       nat64,
     ) -> (Result_2);
   create_escrow : (CreateEscrowParams) -> (Result_2);
-  create_order : (
-      principal,
-      principal,
-      principal,
-      nat64,
-      nat64,
-      nat64,
-      opt principal,
-    ) -> (Result_3);
+  create_order : (principal, principal, principal, nat64, nat64, nat64) -> (
+      Result_3,
+    );
   create_source_escrow : (
       principal,
       principal,
@@ -152,7 +146,7 @@ service : {
   get_active_orders : () -> (vec Order) query;
   get_destination_escrow_status : (text) -> (Result_4) query;
   get_escrow_status : (text) -> (Result_5) query;
-  get_order : (nat64) -> (opt Order) query;
+  get_order_by_id : (nat64) -> (opt Order) query;
   get_orders_by_asset_pair : (principal, principal) -> (vec Order) query;
   get_orders_by_maker : (principal) -> (vec Order) query;
   get_source_escrow_status : (text) -> (Result_6) query;
