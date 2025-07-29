@@ -80,7 +80,8 @@ if dfx canister id test_token &> /dev/null; then
     TEST_TAKER_ASSET=$(dfx canister id test_token)
     print_success "Using test_token canister: $TEST_TAKER_ASSET"
 else
-    print_warning "test_token canister not found, using ckETH principal for testnet"
+    print_warning "test_token canister not found - some tests may not work properly"
+    print_warning "For full testing, deploy with: ./scripts/deploy-local.sh"
     TEST_TAKER_ASSET="ss2fx-dyaaa-aaaar-qacoq-cai"
     print_success "Using ckETH Ledger principal: $TEST_TAKER_ASSET"
 fi

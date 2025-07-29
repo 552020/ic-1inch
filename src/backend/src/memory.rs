@@ -1,8 +1,4 @@
-use crate::types::{
-    DestinationEscrow, Escrow, Order, OrderId, ProtocolFees, SourceEscrow, SystemStats, TakerInfo,
-    TakerWhitelist,
-};
-use candid::Principal;
+use crate::types::{DestinationEscrow, Escrow, Order, OrderId, SourceEscrow, SystemStats};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
@@ -19,19 +15,6 @@ thread_local! {
     static CANCELLED_ORDERS: RefCell<HashSet<OrderId>> = RefCell::new(HashSet::new());
     static ORDER_COUNTER: RefCell<u64> = RefCell::new(0);
     static SYSTEM_STATS: RefCell<SystemStats> = RefCell::new(SystemStats::default());
-
-    // Taker whitelist storage
-    static TAKER_WHITELIST: RefCell<TakerWhitelist> = RefCell::new(TakerWhitelist {
-        whitelisted_takers: vec![],
-    });
-
-    // Taker registry storage (MVP - non-enforced)
-    static TAKER_REGISTRY: RefCell<HashMap<Principal, TakerInfo>> = RefCell::new(HashMap::new());
-    static PROTOCOL_FEES: RefCell<ProtocolFees> = RefCell::new(ProtocolFees {
-        flat_fee_icp: 1000000,     // 0.001 ICP (8 decimals)
-        percentage_fee_bps: 10,     // 0.1%
-        min_balance_threshold: 10000000, // 0.01 ICP
-    });
 }
 
 // Safe access to escrows (legacy support)
@@ -102,16 +85,6 @@ pub fn with_system_stats<T>(f: impl FnOnce(&mut SystemStats) -> T) -> T {
 /// Safe read-only access to system statistics
 pub fn with_system_stats_read<T>(f: impl FnOnce(&SystemStats) -> T) -> T {
     SYSTEM_STATS.with(|stats| f(&stats.borrow()))
-}
-
-/// Safe access to taker whitelist
-pub fn with_taker_whitelist<T>(f: impl FnOnce(&mut TakerWhitelist) -> T) -> T {
-    TAKER_WHITELIST.with(|whitelist| f(&mut whitelist.borrow_mut()))
-}
-
-/// Safe read-only access to taker whitelist
-pub fn with_taker_whitelist_read<T>(f: impl FnOnce(&TakerWhitelist) -> T) -> T {
-    TAKER_WHITELIST.with(|whitelist| f(&whitelist.borrow()))
 }
 
 /// Generate next unique order ID
@@ -264,28 +237,4 @@ pub fn clear_limit_order_data() {
     with_cancelled_orders(|cancelled| cancelled.clear());
     with_order_counter(|counter| *counter = 0);
     with_system_stats(|stats| *stats = SystemStats::default());
-}
-
-// ============================================================================
-// TAKER REGISTRY ACCESS FUNCTIONS (MVP - non-enforced)
-// ============================================================================
-
-/// Safe access to taker registry
-pub fn with_taker_registry<T>(f: impl FnOnce(&mut HashMap<Principal, TakerInfo>) -> T) -> T {
-    TAKER_REGISTRY.with(|registry| f(&mut registry.borrow_mut()))
-}
-
-/// Safe read-only access to taker registry
-pub fn with_taker_registry_read<T>(f: impl FnOnce(&HashMap<Principal, TakerInfo>) -> T) -> T {
-    TAKER_REGISTRY.with(|registry| f(&registry.borrow()))
-}
-
-/// Safe access to protocol fees
-pub fn with_protocol_fees<T>(f: impl FnOnce(&mut ProtocolFees) -> T) -> T {
-    PROTOCOL_FEES.with(|fees| f(&mut fees.borrow_mut()))
-}
-
-/// Safe read-only access to protocol fees
-pub fn with_protocol_fees_read<T>(f: impl FnOnce(&ProtocolFees) -> T) -> T {
-    PROTOCOL_FEES.with(|fees| f(&fees.borrow()))
 }

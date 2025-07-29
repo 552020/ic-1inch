@@ -201,7 +201,7 @@ pub fn validate_taker_whitelist(taker: Principal) -> OrderResult<()> {
         Ok(())
     } else {
         track_error("taker_not_whitelisted");
-        Err(OrderError::TakerNotWhitelisted)
+        Err(OrderError::Unauthorized)
     }
 }
 
