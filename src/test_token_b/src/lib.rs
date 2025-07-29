@@ -1,26 +1,11 @@
 use candid::{CandidType, Deserialize, Principal};
 use ic_cdk::{caller, query, update};
-use icrc_ledger_types::icrc1::transfer::TransferError;
+use icrc_ledger_types::icrc1::account::Account;
+use icrc_ledger_types::icrc1::transfer::{TransferArg, TransferError};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 // ICRC-1 Token Implementation
-#[derive(CandidType, Deserialize, Clone, Debug)]
-pub struct Account {
-    pub owner: Principal,
-    pub subaccount: Option<Vec<u8>>,
-}
-
-#[derive(CandidType, Deserialize, Clone, Debug)]
-pub struct TransferArgs {
-    pub from_subaccount: Option<Vec<u8>>,
-    pub to: Account,
-    pub amount: u128,
-    pub fee: Option<u128>,
-    pub memo: Option<Vec<u8>>,
-    pub created_at_time: Option<u64>,
-}
-
 #[derive(CandidType, Deserialize, Clone, Debug)]
 pub struct TransferResult {
     pub ok: Option<u64>,
@@ -100,11 +85,11 @@ pub fn icrc1_balance_of(account: Account) -> u128 {
 }
 
 #[update]
-pub async fn icrc1_transfer(args: TransferArgs) -> TransferResult {
+pub async fn icrc1_transfer(args: TransferArg) -> TransferResult {
     // Simple transfer implementation for testing
     let from = caller();
     let to = args.to.owner;
-    let amount = args.amount;
+    let amount = args.amount.0.try_into().unwrap_or(0u128);
 
     BALANCES.with(|balances| {
         let mut balances = balances.borrow_mut();
