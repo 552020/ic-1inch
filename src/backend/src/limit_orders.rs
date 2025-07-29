@@ -5,7 +5,7 @@ use ic_cdk::caller;
 use crate::memory::{
     generate_order_id, get_active_orders, get_order, is_order_active, mark_order_cancelled,
     mark_order_filled, track_error, track_order_cancelled, track_order_created, track_order_filled,
-    with_cancelled_orders_read, with_filled_orders_read, with_orders,
+    with_cancelled_orders_read, with_filled_orders_read, with_orders, with_taker_whitelist_read,
 };
 use crate::types::{
     Order, OrderError, OrderId, OrderResult, SystemStats, TokenInterface, MAX_ACTIVE_ORDERS,
@@ -169,6 +169,28 @@ pub fn validate_system_limits(caller: Principal) -> OrderResult<()> {
     Ok(())
 }
 
+// ============================================================================
+// TAKER WHITELIST VALIDATION
+// ============================================================================
+
+/// Check if a taker is whitelisted
+/// TODO: Implement proper whitelist checking when we introduce relayer entity
+pub fn is_taker_whitelisted(taker: Principal) -> bool {
+    // For MVP: hardcoded true - all takers are allowed
+    // Future: Check against actual whitelist and relayer requirements
+    true
+}
+
+/// Validate that a taker is whitelisted
+pub fn validate_taker_whitelist(taker: Principal) -> OrderResult<()> {
+    if is_taker_whitelisted(taker) {
+        Ok(())
+    } else {
+        track_error("taker_not_whitelisted");
+        Err(OrderError::TakerNotWhitelisted)
+    }
+}
+
 /// Validate order creation parameters
 pub fn validate_create_order(
     caller: Principal,
@@ -329,7 +351,10 @@ pub fn cancel_order(order_id: OrderId) -> OrderResult<()> {
 pub async fn fill_order(order_id: OrderId) -> OrderResult<()> {
     let taker = caller();
 
-    // Phase 1: Order retrieval and basic validation
+    // Phase 1: Taker whitelist validation
+    validate_taker_whitelist(taker)?;
+
+    // Phase 2: Order retrieval and basic validation
     let order = get_order(order_id).ok_or_else(|| {
         track_error("order_not_found");
         OrderError::OrderNotFound

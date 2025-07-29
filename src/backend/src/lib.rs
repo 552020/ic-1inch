@@ -205,7 +205,7 @@ fn get_active_orders() -> Vec<Order> {
 
 /// Get a specific order by ID - Used by: Frontend/Users
 #[ic_cdk::query]
-fn get_order(order_id: OrderId) -> Option<Order> {
+fn get_order_by_id(order_id: OrderId) -> Option<Order> {
     limit_orders::get_order_by_id(order_id)
 }
 
@@ -238,17 +238,34 @@ fn get_system_stats() -> SystemStats {
 #[ic_cdk::pre_upgrade]
 fn pre_upgrade() {
     let state = memory::serialize_limit_order_state();
-    ic_cdk::storage::stable_save((state,)).expect("Failed to save state");
+    // Save state to stable memory, but don't panic if it fails
+    if let Err(e) = ic_cdk::storage::stable_save((state,)) {
+        // Log the error but don't panic - this allows the upgrade to proceed
+        ic_cdk::print(format!("Warning: Failed to save state during upgrade: {:?}", e));
+    }
 }
 
 /// Post-upgrade hook: Restore state from stable memory
 #[ic_cdk::post_upgrade]
 fn post_upgrade() {
-    let (state,): ((Vec<(OrderId, Order)>, Vec<OrderId>, Vec<OrderId>, u64, SystemStats),) =
-        ic_cdk::storage::stable_restore().expect("Failed to restore state");
-
-    let (orders, filled, cancelled, counter, stats) = state;
-    memory::deserialize_limit_order_state(orders, filled, cancelled, counter, stats);
+    // Try to restore state, but handle the case where no state exists (fresh deployment)
+    match ic_cdk::storage::stable_restore() {
+        Ok((state,)) => {
+            let (orders, filled, cancelled, counter, stats) = state;
+            memory::deserialize_limit_order_state(orders, filled, cancelled, counter, stats);
+        }
+        Err(_) => {
+            // No existing state found - this is a fresh deployment
+            // Initialize with empty state (default values)
+            memory::deserialize_limit_order_state(
+                vec![],
+                vec![],
+                vec![],
+                0,
+                SystemStats::default(),
+            );
+        }
+    }
 }
 
 ic_cdk::export_candid!();

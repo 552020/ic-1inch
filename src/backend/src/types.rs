@@ -190,6 +190,9 @@ pub enum OrderError {
     TooManyOrders,
     OrderCreationRateLimited,
     SystemOverloaded,
+
+    // Taker Whitelist Errors
+    TakerNotWhitelisted,
 }
 
 /// System statistics for monitoring
@@ -211,6 +214,10 @@ pub struct CreateOrderParams {
     pub making_amount: u64,
     pub taking_amount: u64,
     pub expiration: u64,
+}
+
+pub struct TakerWhitelist {
+    pub whitelisted_takers: Vec<Principal>,
 }
 
 // Result types for limit order operations
@@ -265,6 +272,9 @@ impl std::fmt::Display for OrderError {
             }
             OrderError::SystemOverloaded => {
                 write!(f, "System is currently overloaded. Please try again later")
+            }
+            OrderError::TakerNotWhitelisted => {
+                write!(f, "Taker is not whitelisted. Only authorized takers can fill orders")
             }
         }
     }

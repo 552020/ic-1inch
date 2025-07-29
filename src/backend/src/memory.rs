@@ -1,4 +1,6 @@
-use crate::types::{DestinationEscrow, Escrow, Order, OrderId, SourceEscrow, SystemStats};
+use crate::types::{
+    DestinationEscrow, Escrow, Order, OrderId, SourceEscrow, SystemStats, TakerWhitelist,
+};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
@@ -15,6 +17,11 @@ thread_local! {
     static CANCELLED_ORDERS: RefCell<HashSet<OrderId>> = RefCell::new(HashSet::new());
     static ORDER_COUNTER: RefCell<u64> = RefCell::new(0);
     static SYSTEM_STATS: RefCell<SystemStats> = RefCell::new(SystemStats::default());
+
+    // Taker whitelist storage
+    static TAKER_WHITELIST: RefCell<TakerWhitelist> = RefCell::new(TakerWhitelist {
+        whitelisted_takers: vec![],
+    });
 }
 
 // Safe access to escrows (legacy support)
@@ -85,6 +92,16 @@ pub fn with_system_stats<T>(f: impl FnOnce(&mut SystemStats) -> T) -> T {
 /// Safe read-only access to system statistics
 pub fn with_system_stats_read<T>(f: impl FnOnce(&SystemStats) -> T) -> T {
     SYSTEM_STATS.with(|stats| f(&stats.borrow()))
+}
+
+/// Safe access to taker whitelist
+pub fn with_taker_whitelist<T>(f: impl FnOnce(&mut TakerWhitelist) -> T) -> T {
+    TAKER_WHITELIST.with(|whitelist| f(&mut whitelist.borrow_mut()))
+}
+
+/// Safe read-only access to taker whitelist
+pub fn with_taker_whitelist_read<T>(f: impl FnOnce(&TakerWhitelist) -> T) -> T {
+    TAKER_WHITELIST.with(|whitelist| f(&whitelist.borrow()))
 }
 
 /// Generate next unique order ID
@@ -180,13 +197,8 @@ pub fn track_error(error_type: &str) {
 // ============================================================================
 
 /// Serialize limit order state for canister upgrades
-pub fn serialize_limit_order_state() -> (
-    Vec<(OrderId, Order)>,
-    Vec<OrderId>,
-    Vec<OrderId>,
-    u64,
-    SystemStats,
-) {
+pub fn serialize_limit_order_state(
+) -> (Vec<(OrderId, Order)>, Vec<OrderId>, Vec<OrderId>, u64, SystemStats) {
     let orders = with_orders_read(|orders| orders.iter().map(|(k, v)| (*k, v.clone())).collect());
     let filled = with_filled_orders_read(|filled| filled.iter().cloned().collect());
     let cancelled = with_cancelled_orders_read(|cancelled| cancelled.iter().cloned().collect());
