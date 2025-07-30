@@ -1,64 +1,24 @@
 import { useState } from "react";
-import { MainLayout } from "./components/layout/MainLayout";
-import { LoginScreen } from "./components/auth/LoginScreen";
-import { MakerPage } from "./pages/MakerPage";
-import { TakerPage } from "./pages/TakerPage";
-import { RelayerPage } from "./pages/RelayerPage";
-import { useAuth } from "./hooks/useAuth";
-import { useBackend } from "./hooks/useBackend";
+import { Button } from "./components/ui/button";
+import AppLegacy from "./pages/AppLegacy";
 
 function App() {
-  const [currentView, setCurrentView] = useState<"maker" | "taker" | "relayer">(
-    "maker"
-  );
-  const auth = useAuth();
-  const backend = useBackend();
+  const [showLegacy, setShowLegacy] = useState(false);
 
-  const renderContent = () => {
-    if (!auth.isAuthenticated) {
-      return (
-        <LoginScreen
-          onLogin={auth.login}
-          onTestConnection={backend.testConnection}
-          loading={auth.loading || backend.loading}
-          error={auth.error || backend.error}
-        />
-      );
-    }
-
-    switch (currentView) {
-      case "maker":
-        return (
-          <MakerPage
-            onCreateOrder={backend.createOrder}
-            loading={backend.loading}
-          />
-        );
-      case "taker":
-        return (
-          <TakerPage
-            onFillOrder={backend.fillOrder}
-            loading={backend.loading}
-          />
-        );
-      case "relayer":
-        return <RelayerPage />;
-      default:
-        return null;
-    }
-  };
+  if (showLegacy) {
+    return <AppLegacy />;
+  }
 
   return (
-    <MainLayout
-      currentView={currentView}
-      onViewChange={setCurrentView}
-      isAuthenticated={auth.isAuthenticated}
-      userPrincipal={auth.userPrincipal}
-      onLogin={auth.login}
-      onLogout={auth.logout}
-    >
-      {renderContent()}
-    </MainLayout>
+    <div className="min-h-screen flex items-center justify-center">
+      <Button
+        onClick={() => {
+          setShowLegacy(true);
+        }}
+      >
+        Go to Legacy App
+      </Button>
+    </div>
   );
 }
 
