@@ -9,10 +9,10 @@ import {
 import { canisterId, idlFactory } from "../../../declarations/backend";
 import { ReactNode } from "react";
 import { _SERVICE } from "../../../declarations/backend/backend.did";
-// import { useSiwe } from "ic-siwe-js/react"; // 🔒 To be used later
+import { useSiwe } from "ic-siwe-js/react";
 import { useToast } from "@/hooks/use-toast";
 import { Principal } from "@dfinity/principal";
-import { AnonymousIdentity } from "@dfinity/agent";
+// import { AnonymousIdentity } from "@dfinity/agent"; // 🔒 Old anonymous approach
 
 const actorContext = createActorContext<_SERVICE>();
 export const useActor = createUseActorHook<_SERVICE>(actorContext);
@@ -29,12 +29,11 @@ export const useBackendPrincipal = () => {
 
 export default function Actors({ children }: { children: ReactNode }) {
   const { toast } = useToast();
+  const { identity, clear } = useSiwe();
 
-  // 🔓 Later: use SIWE identity instead
-  // const { identity, clear } = useSiwe();
-
-  const identity = new AnonymousIdentity(); // ✅ Current: always anonymous
-  const clear = () => {}; // ✅ No-op logout
+  // 🔓 Old anonymous approach (commented out)
+  // const identity = new AnonymousIdentity(); // ✅ Current: always anonymous
+  // const clear = () => {}; // ✅ No-op logout
 
   const errorToast = (error: unknown) => {
     if (typeof error === "object" && error !== null && "message" in error) {
@@ -59,7 +58,7 @@ export default function Actors({ children }: { children: ReactNode }) {
         description: "Invalid delegation. Please log in again.",
       });
       setTimeout(() => {
-        clear(); // 🔓 Will trigger SIWE logout later
+        clear(); // Will trigger SIWE logout
         window.location.reload();
       }, 1000);
       return;
