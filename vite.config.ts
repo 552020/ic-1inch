@@ -12,7 +12,7 @@ dotenv.config({ path: ".env" });
 export default defineConfig({
   root: "src/frontend",
   build: {
-    outDir: "../../dist",
+    outDir: "dist",
     target: "ES2022",
   },
   optimizeDeps: {
