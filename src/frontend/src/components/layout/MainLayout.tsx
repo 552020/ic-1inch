@@ -1,6 +1,6 @@
 import React from "react";
 import { SidebarProvider, SidebarTrigger } from "../ui/sidebar";
-import { Header } from "./Header";
+import { HeaderLegacy } from "./HeaderLegacy";
 import { AppSidebar } from "./Sidebar";
 import { Footer } from "./Footer";
 
@@ -54,7 +54,7 @@ export function MainLayout({
         {/* Main Content Area */}
         <div className="flex flex-1 flex-col">
           {/* Header */}
-          <Header
+          <HeaderLegacy
             isAuthenticated={isAuthenticated}
             userPrincipal={userPrincipal}
             onLogin={onLogin}
