@@ -3,7 +3,7 @@ import "./index.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Actors from "./contexts/Actors.tsx";
 import App from "./App.tsx";
-// import AuthGuard from "./contexts/AuthGuard.tsx";
+import AuthGuard from "./contexts/AuthGuard.tsx";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { SiweIdentityProvider } from "ic-siwe-js/react";
@@ -26,10 +26,10 @@ ReactDOM.createRoot(rootElement).render(
       <QueryClientProvider client={queryClient}>
         <SiweIdentityProvider canisterId={canisterId}>
           <Actors>
-            {/* <AuthGuard> */}
-            <App />
-            <Toaster />
-            {/* </AuthGuard> */}
+            <AuthGuard>
+              <App />
+              <Toaster />
+            </AuthGuard>
           </Actors>
         </SiweIdentityProvider>
       </QueryClientProvider>
