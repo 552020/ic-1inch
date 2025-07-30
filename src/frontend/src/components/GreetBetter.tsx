@@ -8,7 +8,7 @@ export function GreetBetter() {
   const { actor } = useActor();
   const { toast } = useToast();
 
-  const [name, setName] = useState("ICP");
+  const [name, setName] = useState("");
   const [greeting, setGreeting] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -39,16 +39,19 @@ export function GreetBetter() {
 
   return (
     <div className="flex flex-col items-center gap-4">
-      <Input
-        value={name}
-        onChange={(e) => {
-          setName(e.target.value);
-        }}
-      />
-      <Button onClick={handleGreet} disabled={isLoading}>
-        {isLoading ? "Greeting..." : "Greet"}
-      </Button>
-      {greeting && <p className="text-lg">{greeting}</p>}
+      <div className="flex gap-2 w-full max-w-sm">
+        <Input
+          placeholder="Your name"
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+          }}
+        />
+        <Button onClick={handleGreet} disabled={isLoading}>
+          {isLoading ? "Greeting..." : "Greet"}
+        </Button>
+      </div>
+      {greeting && <p className="text-lg text-center">{greeting}</p>}
     </div>
   );
 }
