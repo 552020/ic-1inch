@@ -1,5 +1,6 @@
 import { useAccount, useEnsName } from "wagmi";
 import { Unplug } from "lucide-react";
+// import { shortenEthAddress } from "../../lib/shortenEthAddress";
 import { shortenEthAddress } from "../../lib/shortenEthAddress";
 
 function ButtonIcon() {

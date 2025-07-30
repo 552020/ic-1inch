@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useAccount, useChainId } from "wagmi";
 
-import LoginPage from "@/components/login/LoginPage";
+import LoginPage from "../components/layout/LoginPage";
 import { isChainIdSupported } from "@/wagmi/is-chain-id-supported";
 import { useSiwe } from "ic-siwe-js/react";
 

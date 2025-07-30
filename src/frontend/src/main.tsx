@@ -3,7 +3,7 @@ import "./index.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Actors from "./contexts/Actors.tsx";
 import App from "./App.tsx";
-import AuthGuard from "./contexts/AuthGuard.tsx";
+// import AuthGuard from "./contexts/AuthGuard.tsx";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { SiweIdentityProvider } from "ic-siwe-js/react";
@@ -11,6 +11,7 @@ import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "./wagmi/wagmi.config.ts";
 import { canisterId } from "../../ic_siwe_provider/declarations/index";
 import { Toaster } from "@/components/ui/toaster.tsx";
+import AuthSync from "./contexts/AuthSync.tsx";
 
 export const queryClient = new QueryClient();
 
@@ -26,10 +27,10 @@ ReactDOM.createRoot(rootElement).render(
       <QueryClientProvider client={queryClient}>
         <SiweIdentityProvider canisterId={canisterId}>
           <Actors>
-            <AuthGuard>
+            <AuthSync>
               <App />
               <Toaster />
-            </AuthGuard>
+            </AuthSync>
           </Actors>
         </SiweIdentityProvider>
       </QueryClientProvider>
