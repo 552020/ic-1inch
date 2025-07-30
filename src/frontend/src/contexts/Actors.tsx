@@ -12,7 +12,7 @@ import { _SERVICE } from "../../../declarations/backend/backend.did";
 import { useSiwe } from "ic-siwe-js/react";
 import { useToast } from "@/hooks/use-toast";
 import { Principal } from "@dfinity/principal";
-// import { AnonymousIdentity } from "@dfinity/agent"; // 🔒 Old anonymous approach
+import { AnonymousIdentity } from "@dfinity/agent";
 
 const actorContext = createActorContext<_SERVICE>();
 export const useActor = createUseActorHook<_SERVICE>(actorContext);
@@ -29,11 +29,10 @@ export const useBackendPrincipal = () => {
 
 export default function Actors({ children }: { children: ReactNode }) {
   const { toast } = useToast();
-  const { identity, clear } = useSiwe();
+  const { identity: siweIdentity, clear } = useSiwe();
 
-  // 🔓 Old anonymous approach (commented out)
-  // const identity = new AnonymousIdentity(); // ✅ Current: always anonymous
-  // const clear = () => {}; // ✅ No-op logout
+  // Use SIWE identity if available, otherwise fallback to anonymous
+  const identity = siweIdentity || new AnonymousIdentity();
 
   const errorToast = (error: unknown) => {
     if (typeof error === "object" && error !== null && "message" in error) {
