@@ -47,7 +47,7 @@ dfx canister call test_token_b icrc1_name '()'
 dfx identity list
 ```
 
-**Expected Result:** All canisters respond, identities (maker, resolver, relayer) exist
+**Expected Result:** All canisters respond, identities (maker, taker, relayer) exist
 
 ---
 
@@ -69,16 +69,16 @@ dfx identity use maker
 dfx identity whoami
 
 # Fund maker with test tokens (simulating ICP balance)
-dfx canister call test_token_a mint_for_caller "(1000000000:nat64)"  # 10 tokens
-dfx canister call test_token_b mint_for_caller "(1000000000:nat64)"  # 10 tokens
+dfx canister call test_token_a mint_tokens "(principal \"$MAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
+dfx canister call test_token_b mint_tokens "(principal \"$MAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
 
-# Switch to resolver identity
-dfx identity use resolver
+# Switch to taker identity
+dfx identity use taker
 dfx identity whoami
 
-# Fund resolver with test tokens
-dfx canister call test_token_a mint_for_caller "(1000000000:nat64)"  # 10 tokens
-dfx canister call test_token_b mint_for_caller "(1000000000:nat64)"  # 10 tokens
+# Fund taker with test tokens
+dfx canister call test_token_a mint_tokens "(principal \"$TAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
+dfx canister call test_token_b mint_tokens "(principal \"$TAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
 
 # Switch back to maker for order creation
 dfx identity use maker
@@ -135,22 +135,22 @@ dfx canister call orderbook get_orders_by_maker "(principal \"$MAKER_PRINCIPAL\"
 
 ---
 
-### Step 2: Resolver Accepts Order
+### Step 2: Taker Accepts Order
 
-#### Step 2.1: Switch to Resolver Identity
+#### Step 2.1: Switch to Taker Identity
 
 ```bash
-# Switch to resolver identity
-dfx identity use resolver
+# Switch to taker identity
+dfx identity use taker
 dfx identity whoami
 ```
 
-**Expected Result:** `resolver`
+**Expected Result:** `taker`
 
 #### Step 2.2: Discover Available Orders
 
 ```bash
-# View available orders as resolver
+# View available orders as taker
 dfx canister call orderbook get_active_fusion_orders '()'
 ```
 
@@ -159,13 +159,13 @@ dfx canister call orderbook get_active_fusion_orders '()'
 #### Step 2.3: Accept the Order
 
 ```bash
-# Accept the order as resolver
+# Accept the order as taker
 # Parameters explained:
 # - "fusion_1234567890_..."                          # order_id
-# - "0x8ba1f109551bD432803012645Hac189451b934"      # resolver's ETH address
+# - "0x8ba1f109551bD432803012645Hac189451b934"      # taker's ETH address
 dfx canister call orderbook accept_fusion_order "(
   \"$ORDER_ID\",
-  \"$RESOLVER_ETH_ADDRESS\"
+  \"$TAKER_ETH_ADDRESS\"
 )"
 ```
 
@@ -201,12 +201,12 @@ dfx identity whoami
 # Parameters explained:
 # - "fusion_1234567890_..."                          # order_id
 # - 1000000000:nat64                                 # amount (10 ICP in 8 decimals)
-# - principal "..."                                   # resolver principal (not hashlock)
+# - principal "..."                                   # taker principal (not hashlock)
 # - timelock (2 hours from now in nanoseconds)
 dfx canister call escrow lock_icp_for_swap "(
   \"$ORDER_ID\",
   ${ICP_AMOUNT}:nat64,
-  principal \"$RESOLVER_PRINCIPAL\",
+  principal \"$TAKER_PRINCIPAL\",
   $(($(date +%s) + 7200))000000000:nat64
 )"
 ```
@@ -252,7 +252,7 @@ dfx canister call escrow get_fusion_escrow_status "(\"$ESCROW_ID\")"
 
 # Simulate ETH side verification
 echo "=== ETH SIDE VERIFICATION (SIMULATED) ==="
-echo "✅ Resolver has locked 0.01 ETH in Sepolia escrow contract"
+echo "✅ Taker has locked 0.01 ETH in Sepolia escrow contract"
 echo "✅ ETH escrow contract address: 0x123...abc"
 echo "✅ Transaction hash: 0xdef456..."
 echo "✅ Block confirmation: 12/12"
@@ -353,7 +353,7 @@ dfx canister call escrow get_fusion_escrow_status "(\"$ESCROW_ID\")"
 ```bash
 echo "=== ATOMIC SWAP VERIFICATION (SIMULATED) ==="
 echo "✅ Maker received: 0.01 ETH at $MAKER_ETH_ADDRESS (simulated)"
-echo "✅ Resolver received: 10 ICP tokens (simulated)"
+echo "✅ Taker received: 10 ICP tokens (simulated)"
 echo "✅ Order completed atomically (simulated)"
 echo "✅ No funds lost or stuck (simulated)"
 ```
@@ -406,7 +406,7 @@ echo "✅ Signature verified"
 
 Follow the same pattern as Scenario 1, but with:
 
-- Resolver locks both ETH (using EIP-712) and ICP
+- Taker locks both ETH (using EIP-712) and ICP
 - Atomic completion with reversed token flow
 - ETH escrow on Ethereum, ICP escrow on ICP
 
@@ -436,7 +436,7 @@ dfx canister call orderbook create_fusion_order "(
 # Try to accept order that doesn't exist
 dfx canister call orderbook accept_fusion_order "(
   \"nonexistent_order\",
-  \"$RESOLVER_ETH_ADDRESS\"
+  \"$TAKER_ETH_ADDRESS\"
 )"
 ```
 
@@ -456,22 +456,22 @@ dfx canister call escrow claim_locked_icp "(
 
 ---
 
-## Scenario 4: Resolver Whitelisting
+## Scenario 4: Taker Whitelisting
 
-### Step 4.1: Test Resolver Management
+### Step 4.1: Test Taker Management
 
 ```bash
-# Switch to relayer (who manages resolver whitelist)
+# Switch to relayer (who manages taker whitelist)
 dfx identity use relayer
 
 # Note: Whitelisting functionality would be added to orderbook canister
-echo "=== RESOLVER WHITELISTING (FUTURE FEATURE) ==="
-echo "• Add resolver to whitelist"
-echo "• Remove resolver from whitelist"
-echo "• Check resolver status"
+echo "=== TAKER WHITELISTING (FUTURE FEATURE) ==="
+echo "• Add taker to whitelist"
+echo "• Remove taker from whitelist"
+echo "• Check taker status"
 ```
 
-**Expected Result:** Framework for resolver management
+**Expected Result:** Framework for taker management
 
 ---
 
@@ -487,7 +487,7 @@ echo "1. MetaMask connection"
 echo "2. SIWE authentication"
 echo "3. Cross-chain identity derivation"
 echo "4. Order creation UI"
-echo "5. Resolver interface"
+echo "5. Taker interface"
 echo "6. Relayer admin panel"
 ```
 
@@ -537,7 +537,7 @@ time dfx canister call orderbook get_active_fusion_orders '()'
 
 - [ ] ICP → ETH orders can be created
 - [ ] ETH → ICP orders can be created
-- [ ] Resolvers can accept orders
+- [ ] Takers can accept orders
 - [ ] ICP escrow system works correctly
 - [ ] Cross-chain coordination functions
 - [ ] Atomic completion prevents fund loss
@@ -607,7 +607,7 @@ source .env.mechanical-turk
 ### Basic Canister Functions are Working When:
 
 1. ✅ **Order creation** functions work correctly
-2. ✅ **Order acceptance** by resolvers functions
+2. ✅ **Order acceptance** by takers functions
 3. ✅ **Escrow creation** functions work
 4. ✅ **Status queries** return correct data
 5. ✅ **Order updates** can be performed by relayer
