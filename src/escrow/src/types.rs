@@ -47,6 +47,15 @@ pub enum UserRole {
     Resolver,
 }
 
+/// Simplified order structure for escrow verification
+#[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
+pub struct FusionOrder {
+    pub id: String,
+    pub maker_icp_principal: Principal,
+    pub from_token: Token,
+    pub to_token: Token,
+}
+
 /// Escrow-specific error types
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
 pub enum EscrowError {

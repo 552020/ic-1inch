@@ -77,6 +77,18 @@ async fn lock_icp_for_order(
         return Err(EscrowError::TimelockExpired);
     }
 
+    // Verify this is an ICP → ETH order by checking the order details
+    let is_icp_to_eth = verify_order_direction(&order_id).await?;
+    if !is_icp_to_eth {
+        return Err(EscrowError::InvalidState);
+    }
+
+    // Verify caller is the maker of this order
+    let is_maker = verify_caller_is_maker(&order_id, caller).await?;
+    if !is_maker {
+        return Err(EscrowError::Unauthorized);
+    }
+
     // Generate escrow ID
     let escrow_id = generate_escrow_id(&order_id);
 
@@ -107,7 +119,7 @@ async fn lock_icp_for_order(
     fund_escrow(escrow_id.clone())?;
 
     ic_cdk::println!(
-        "🔒 Automatically locked {} ICP tokens for order {} (escrow: {})",
+        "🔒 Automatically locked {} ICP tokens for ICP→ETH order {} (escrow: {})",
         amount,
         order_id,
         escrow_id
@@ -311,6 +323,54 @@ fn get_test_token_canister(token: &Token) -> Result<Principal, EscrowError> {
             Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")
                 .map_err(|_| EscrowError::SystemError)
         }
+    }
+}
+
+/// Verify that an order is ICP → ETH direction - Used by: Escrow
+async fn verify_order_direction(order_id: &str) -> Result<bool, EscrowError> {
+    // Get orderbook canister ID (this would be configured during deployment)
+    let orderbook_canister_id = Principal::from_text("uxrrr-q7777-77774-qaaaq-cai")
+        .map_err(|_| EscrowError::SystemError)?;
+
+    // Call orderbook to get order details
+    let result: Result<(Option<types::FusionOrder>,), _> = ic_cdk::call(
+        orderbook_canister_id,
+        "get_fusion_order_status",
+        (order_id.to_string(),),
+    ).await;
+
+    match result {
+        Ok((Some(order),)) => {
+            // Check if order is ICP → ETH
+            let is_icp_to_eth = order.from_token == Token::ICP && order.to_token == Token::ETH;
+            Ok(is_icp_to_eth)
+        }
+        Ok((None,)) => Err(EscrowError::OrderNotFound),
+        Err(_) => Err(EscrowError::SystemError),
+    }
+}
+
+/// Verify that the caller is the maker of the order - Used by: Escrow
+async fn verify_caller_is_maker(order_id: &str, caller: Principal) -> Result<bool, EscrowError> {
+    // Get orderbook canister ID (this would be configured during deployment)
+    let orderbook_canister_id = Principal::from_text("uxrrr-q7777-77774-qaaaq-cai")
+        .map_err(|_| EscrowError::SystemError)?;
+
+    // Call orderbook to get order details
+    let result: Result<(Option<types::FusionOrder>,), _> = ic_cdk::call(
+        orderbook_canister_id,
+        "get_fusion_order_status",
+        (order_id.to_string(),),
+    ).await;
+
+    match result {
+        Ok((Some(order),)) => {
+            // Check if caller is the maker
+            let is_maker = order.maker_icp_principal == caller;
+            Ok(is_maker)
+        }
+        Ok((None,)) => Err(EscrowError::OrderNotFound),
+        Err(_) => Err(EscrowError::SystemError),
     }
 }
 
