@@ -1,0 +1,29 @@
+type Token = variant { ICP; ETH };
+type EscrowStatus = variant { Created; Funded; Claimed; Refunded };
+type FusionEscrow = record {
+  id : text;
+  order_id : text;
+  token : Token;
+  amount : nat64;
+  locked_by : principal;
+  locked_at : nat64;
+  status : EscrowStatus;
+};
+type EscrowError = variant {
+  EscrowNotFound;
+  InsufficientBalance;
+  Unauthorized;
+  InvalidState;
+  SystemError;
+};
+type Result = variant { Ok : text; Err : EscrowError };
+type Result_1 = variant { Ok; Err : EscrowError };
+
+service : {
+  lock_icp_for_swap : (text, nat64, blob, nat64) -> (Result);
+  claim_locked_icp : (text, blob, text) -> (Result_1);
+  refund_locked_icp : (text) -> (Result_1);
+  get_fusion_escrow_status : (text) -> (opt FusionEscrow) query;
+  list_fusion_escrows : () -> (vec FusionEscrow) query;
+  fund_escrow : (text) -> (Result_1);
+}
