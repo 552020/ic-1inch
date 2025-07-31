@@ -10,3 +10,4 @@ crate-type = ["cdylib"]
 candid = "0.10"
 ic-cdk = "0.13"
 serde = { version = "1.0", features = ["derive"] }
+icrc-ledger-types = "0.1"

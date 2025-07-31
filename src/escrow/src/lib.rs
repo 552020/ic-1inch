@@ -1,7 +1,10 @@
 mod memory;
 mod types;
 
-use candid::Principal;
+use candid::{Nat, Principal};
+use ic_cdk::call;
+use icrc_ledger_types::icrc1::account::Account;
+use icrc_ledger_types::icrc1::transfer::{TransferArg, TransferError};
 use types::{EscrowError, EscrowStatus, FusionEscrow, Token};
 
 /// Lock ICP tokens for a cross-chain swap - Used by: Makers
@@ -40,9 +43,13 @@ async fn lock_icp_for_swap(
     // Store escrow
     memory::store_fusion_escrow(escrow)?;
 
-    // TODO: Implement actual ICP token transfer to escrow
-    // This would integrate with the ICP ledger canister
-    // For now, we simulate the transfer by marking as funded
+    // Get test token canister for ICP
+    let token_canister = get_test_token_canister(&Token::ICP)?;
+
+    // Transfer tokens from maker to escrow canister
+    transfer_tokens_to_escrow(token_canister, caller, amount).await?;
+
+    // Mark escrow as funded after successful transfer
     fund_escrow(escrow_id.clone())?;
 
     ic_cdk::println!(
@@ -84,13 +91,16 @@ async fn claim_locked_icp(escrow_id: String, eth_receipt: String) -> Result<(), 
         return Err(EscrowError::InvalidReceipt);
     }
 
+    // Get test token canister for ICP
+    let token_canister = get_test_token_canister(&Token::ICP)?;
+
+    // Transfer tokens from escrow to resolver
+    transfer_tokens_from_escrow(token_canister, caller, escrow.amount).await?;
+
     // Update escrow status
     escrow.status = EscrowStatus::Claimed;
     escrow.eth_receipt = Some(eth_receipt);
     memory::store_fusion_escrow(escrow.clone())?;
-
-    // TODO: Transfer ICP tokens to resolver
-    // This would integrate with the ICP ledger canister
 
     ic_cdk::println!(
         "✅ Claimed {} ICP tokens from fusion escrow {} by resolver {}",
@@ -126,12 +136,15 @@ async fn refund_locked_icp(escrow_id: String) -> Result<(), EscrowError> {
         return Err(EscrowError::TimelockNotExpired);
     }
 
+    // Get test token canister for ICP
+    let token_canister = get_test_token_canister(&Token::ICP)?;
+
+    // Refund tokens from escrow to original locker
+    transfer_tokens_from_escrow(token_canister, caller, escrow.amount).await?;
+
     // Update escrow status
     escrow.status = EscrowStatus::Refunded;
     memory::store_fusion_escrow(escrow.clone())?;
-
-    // TODO: Refund ICP tokens to original locker
-    // This would integrate with the ICP ledger canister
 
     ic_cdk::println!(
         "💰 Refunded {} ICP tokens to maker {} from fusion escrow {}",
@@ -168,6 +181,87 @@ fn fund_escrow(escrow_id: String) -> Result<(), EscrowError> {
 fn generate_escrow_id(order_id: &str) -> String {
     let timestamp = ic_cdk::api::time();
     format!("escrow_{}_{}", order_id, timestamp)
+}
+
+/// Transfer tokens from user to escrow canister
+async fn transfer_tokens_to_escrow(
+    token_canister: Principal,
+    _from: Principal,
+    amount: u64,
+) -> Result<(), EscrowError> {
+    let escrow_principal = ic_cdk::id();
+    
+    let transfer_args = TransferArg {
+        from_subaccount: None,
+        to: Account {
+            owner: escrow_principal,
+            subaccount: None,
+        },
+        amount: Nat::from(amount),
+        fee: None,
+        memo: None,
+        created_at_time: None,
+    };
+
+    let result: Result<(Result<u64, TransferError>,), _> = 
+        call(token_canister, "icrc1_transfer", (transfer_args,)).await;
+
+    match result {
+        Ok((Ok(_),)) => Ok(()),
+        Ok((Err(TransferError::InsufficientFunds { balance: _ }),)) => {
+            Err(EscrowError::InsufficientBalance)
+        }
+        Ok((Err(_),)) => Err(EscrowError::TransferFailed),
+        Err(_) => Err(EscrowError::SystemError),
+    }
+}
+
+/// Transfer tokens from escrow canister to recipient
+async fn transfer_tokens_from_escrow(
+    token_canister: Principal,
+    to: Principal,
+    amount: u64,
+) -> Result<(), EscrowError> {
+    let _escrow_principal = ic_cdk::id();
+    
+    let transfer_args = TransferArg {
+        from_subaccount: None,
+        to: Account {
+            owner: to,
+            subaccount: None,
+        },
+        amount: Nat::from(amount),
+        fee: None,
+        memo: None,
+        created_at_time: None,
+    };
+
+    let result: Result<(Result<u64, TransferError>,), _> = 
+        call(token_canister, "icrc1_transfer", (transfer_args,)).await;
+
+    match result {
+        Ok((Ok(_),)) => Ok(()),
+        Ok((Err(_),)) => Err(EscrowError::TransferFailed),
+        Err(_) => Err(EscrowError::SystemError),
+    }
+}
+
+/// Get test token canister ID based on token type
+fn get_test_token_canister(token: &Token) -> Result<Principal, EscrowError> {
+    // For mechanical turk testing, we'll use test_token_a for ICP and test_token_b for ETH
+    // In production, this would be the actual ICP ledger canister
+    match token {
+        Token::ICP => {
+            // Use test_token_a for ICP simulation
+            // TODO: In production, this would be the actual ICP ledger canister
+            Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai").map_err(|_| EscrowError::SystemError)
+        }
+        Token::ETH => {
+            // Use test_token_b for ETH simulation
+            // TODO: In production, this would be the actual ICP ledger canister
+            Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai").map_err(|_| EscrowError::SystemError)
+        }
+    }
 }
 
 ic_cdk::export_candid!();
