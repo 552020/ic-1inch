@@ -137,4 +137,36 @@ fn generate_order_id() -> String {
     format!("fusion_{}_{}", timestamp, caller.to_text())
 }
 
+// ============================================================================
+// CANISTER UPGRADE HOOKS
+// ============================================================================
+
+/// Pre-upgrade hook: Save state to stable memory
+#[ic_cdk::pre_upgrade]
+fn pre_upgrade() {
+    let state = memory::serialize_orderbook_state();
+    // Save state to stable memory, but don't panic if it fails
+    if let Err(e) = ic_cdk::storage::stable_save((state,)) {
+        // Log the error but don't panic - this allows the upgrade to proceed
+        ic_cdk::print(format!("Warning: Failed to save orderbook state during upgrade: {:?}", e));
+    }
+}
+
+/// Post-upgrade hook: Restore state from stable memory
+#[ic_cdk::post_upgrade]
+fn post_upgrade() {
+    // Try to restore state, but handle the case where no state exists (fresh deployment)
+    match ic_cdk::storage::stable_restore() {
+        Ok((state,)) => {
+            let (orders, identities) = state;
+            memory::deserialize_orderbook_state(orders, identities);
+        }
+        Err(_) => {
+            // No existing state found - this is a fresh deployment
+            // Initialize with empty state (default values)
+            memory::deserialize_orderbook_state(vec![], vec![]);
+        }
+    }
+}
+
 ic_cdk::export_candid!();

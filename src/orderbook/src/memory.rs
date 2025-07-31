@@ -47,6 +47,37 @@ pub fn get_all_cross_chain_identities() -> Vec<CrossChainIdentity> {
     CROSS_CHAIN_IDENTITIES.with(|identities| identities.borrow().values().cloned().collect())
 }
 
+/// Serialize orderbook state for canister upgrades
+pub fn serialize_orderbook_state() -> (Vec<(String, FusionOrder)>, Vec<(String, CrossChainIdentity)>)
+{
+    let orders = FUSION_ORDERS
+        .with(|orders| orders.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+    let identities = CROSS_CHAIN_IDENTITIES.with(|identities| {
+        identities.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+    });
+    (orders, identities)
+}
+
+/// Deserialize orderbook state after canister upgrades
+pub fn deserialize_orderbook_state(
+    orders: Vec<(String, FusionOrder)>,
+    identities: Vec<(String, CrossChainIdentity)>,
+) {
+    FUSION_ORDERS.with(|order_map| {
+        order_map.borrow_mut().clear();
+        for (id, order) in orders {
+            order_map.borrow_mut().insert(id, order);
+        }
+    });
+
+    CROSS_CHAIN_IDENTITIES.with(|identity_map| {
+        identity_map.borrow_mut().clear();
+        for (eth_address, identity) in identities {
+            identity_map.borrow_mut().insert(eth_address, identity);
+        }
+    });
+}
+
 /// Clear all fusion data (for testing purposes)
 #[cfg(test)]
 pub fn clear_fusion_data() {
