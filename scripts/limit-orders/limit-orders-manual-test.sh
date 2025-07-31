@@ -71,13 +71,13 @@ echo ""
 echo "📋 Scenario 1: Maker Creates Limit Order"
 
 ## Step 1.1: Verify System is Ready
-echo "1.1 Testing backend connection..."
+echo "1.1 Testing limit-order connection..."
 
-RESPONSE=$(dfx canister call backend greet '("Prime")')
+RESPONSE=$(dfx canister call limit-order greet '("Prime")')
 if [[ $RESPONSE == *"Hello, Prime!"* ]]; then
     echo "   ✅ Backend connected"
 else
-    print_error "Backend connection failed: $RESPONSE"
+    print_error "Limit-order connection failed: $RESPONSE"
     exit 1
 fi
 
@@ -100,7 +100,7 @@ fi
 
 # Create order: Sell 10 TOKEN_A for 0.001 TOKEN_B
 EXPIRATION=$(($(date +%s) + 3600))000000000
-ORDER_RESPONSE=$(dfx canister call backend create_order "(
+ORDER_RESPONSE=$(dfx canister call limit-order create_order "(
   principal \"$MAKER_PRINCIPAL\",
   principal \"$TEST_TOKEN_A\",
   principal \"$TEST_TOKEN_B\",
@@ -128,7 +128,7 @@ should_stop "1.2"
 ## Step 1.3: Verify Order was Created
 echo "1.3 Verifying order..."
 
-ORDER_DETAILS=$(dfx canister call backend get_order_by_id "($ORDER_ID:nat64)")
+ORDER_DETAILS=$(dfx canister call limit-order get_order_by_id "($ORDER_ID:nat64)")
 if [[ $ORDER_DETAILS == *"id = $ORDER_ID"* ]]; then
     echo "   ✅ Order $ORDER_ID verified"
 else
@@ -141,7 +141,7 @@ should_stop "1.3"
 ## Step 1.4: View All Active Orders
 echo "1.4 Checking active orders..."
 
-ACTIVE_ORDERS=$(dfx canister call backend get_active_orders '()')
+ACTIVE_ORDERS=$(dfx canister call limit-order get_active_orders '()')
 if [[ $ACTIVE_ORDERS == *"id = $ORDER_ID"* ]]; then
     echo "   ✅ Order $ORDER_ID in active list"
 else
@@ -155,7 +155,7 @@ should_stop "1.4"
 echo "1.5 Creating second order..."
 
 EXPIRATION2=$(($(date +%s) + 7200))000000000
-ORDER2_RESPONSE=$(dfx canister call backend create_order "(
+ORDER2_RESPONSE=$(dfx canister call limit-order create_order "(
   principal \"$MAKER_PRINCIPAL\",
   principal \"$TEST_TOKEN_A\",
   principal \"$TEST_TOKEN_B\",

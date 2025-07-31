@@ -1,6 +1,6 @@
 [workspace]
 members = [
-	"src/backend",
+	"src/limit-order",
 	"src/test_token_icp",
 	"src/test_token_eth",
 	"src/orderbook",

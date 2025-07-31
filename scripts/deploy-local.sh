@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Deploy backend, frontend, and test tokens for local development
+# Deploy limit-order, frontend, and test tokens for local development
 set -e
 
-dfx deploy backend
+dfx deploy limit-order
 dfx deploy test_token_a
 dfx deploy test_token_b
 dfx deploy frontend

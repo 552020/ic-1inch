@@ -1,8 +1,8 @@
 {
   "canisters": {
-    "backend": {
-      "candid": "src/backend/backend.did",
-      "package": "backend",
+    "limit-order": {
+      "candid": "src/limit-order/limit-order.did",
+      "package": "limit-order",
       "type": "rust"
     },
     "orderbook": {
@@ -16,7 +16,7 @@
       "type": "rust"
     },
     "frontend": {
-      "dependencies": ["backend"],
+      "dependencies": ["limit-order"],
       "source": ["src/frontend/dist"],
       "type": "assets"
     },

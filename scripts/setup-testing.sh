@@ -18,19 +18,19 @@ if [ ! -f "dfx.json" ]; then
 fi
 
 # Create canister first
-echo "📦 Creating backend canister..."
-dfx canister create backend --network local || echo "Canister already exists"
+echo "📦 Creating limit-order canister..."
+dfx canister create limit-order --network local || echo "Canister already exists"
 
 # Build canister
-echo "🔨 Building backend canister..."
-dfx build backend
+echo "🔨 Building limit-order canister..."
+dfx build limit-order
 
 # Deploy canister
-echo "📦 Deploying backend canister..."
-dfx deploy backend --network local
+echo "📦 Deploying limit-order canister..."
+dfx deploy limit-order --network local
 
 # Get canister ID
-CANISTER_ID=$(dfx canister id backend)
+CANISTER_ID=$(dfx canister id limit-order)
 echo "📦 Canister deployed: $CANISTER_ID"
 
 echo "✅ Testing environment setup completed!"
