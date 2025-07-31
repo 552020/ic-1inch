@@ -91,6 +91,19 @@ fi
 echo ""
 echo -e "${BLUE}🚀 Deploying canisters (Step 3/3)...${NC}"
 
+# Deploy test tokens (for realistic token testing)
+echo -e "${YELLOW}🪙 Deploying test_token_icp canister...${NC}"
+if ! dfx deploy test_token_icp; then
+    echo -e "${RED}❌ Failed to deploy test_token_icp canister${NC}"
+    exit 1
+fi
+
+echo -e "${YELLOW}🪙 Deploying test_token_eth canister...${NC}"
+if ! dfx deploy test_token_eth; then
+    echo -e "${RED}❌ Failed to deploy test_token_eth canister${NC}"
+    exit 1
+fi
+
 # Deploy orderbook canister (relayer-controlled order management)
 echo -e "${YELLOW}🔄 Deploying orderbook canister...${NC}"
 if ! dfx deploy orderbook; then
@@ -105,23 +118,42 @@ if ! dfx deploy escrow; then
     exit 1
 fi
 
-# Generate declarations for fusion canisters only
-echo -e "${YELLOW}📝 Generating fusion canister declarations...${NC}"
+# Deploy SIWE provider canister (authentication)
+echo -e "${YELLOW}🔐 Deploying SIWE provider canister...${NC}"
+if ! ./scripts/mechanical-turk/deploy-siwe-provider.sh; then
+    echo -e "${RED}❌ Failed to deploy SIWE provider canister${NC}"
+    exit 1
+fi
+
+# Generate declarations for all canisters
+echo -e "${YELLOW}📝 Generating canister declarations...${NC}"
+echo -e "${YELLOW}  • Generating test_token_icp declarations...${NC}"
+dfx generate test_token_icp
+echo -e "${YELLOW}  • Generating test_token_eth declarations...${NC}"
+dfx generate test_token_eth
 echo -e "${YELLOW}  • Generating orderbook declarations...${NC}"
 dfx generate orderbook
 echo -e "${YELLOW}  • Generating escrow declarations...${NC}"
 dfx generate escrow
+echo -e "${YELLOW}  • Generating SIWE provider declarations...${NC}"
+dfx generate ic_siwe_provider
 
 echo ""
 echo -e "${GREEN}✅ Mechanical Turk deployment complete!${NC}"
 echo ""
 echo -e "${BLUE}📋 Deployed Canisters:${NC}"
-echo -e "  • Orderbook: ${GREEN}$(dfx canister id orderbook)${NC}"
-echo -e "  • Escrow:    ${GREEN}$(dfx canister id escrow)${NC}"
+echo -e "  • Test Token ICP: ${GREEN}$(dfx canister id test_token_icp)${NC}"
+echo -e "  • Test Token ETH: ${GREEN}$(dfx canister id test_token_eth)${NC}"
+echo -e "  • Orderbook:      ${GREEN}$(dfx canister id orderbook)${NC}"
+echo -e "  • Escrow:         ${GREEN}$(dfx canister id escrow)${NC}"
+echo -e "  • SIWE Provider:  ${GREEN}$(dfx canister id ic_siwe_provider)${NC}"
 echo ""
 echo -e "${BLUE}🔗 Candid Interfaces:${NC}"
-echo -e "  • Orderbook: ${YELLOW}http://localhost:4943/?canisterId=$(dfx canister id __Candid_UI)&id=$(dfx canister id orderbook)${NC}"
-echo -e "  • Escrow:    ${YELLOW}http://localhost:4943/?canisterId=$(dfx canister id __Candid_UI)&id=$(dfx canister id escrow)${NC}"
+echo -e "  • Test Token ICP: ${YELLOW}http://localhost:4943/?canisterId=$(dfx canister id __Candid_UI)&id=$(dfx canister id test_token_icp)${NC}"
+echo -e "  • Test Token ETH: ${YELLOW}http://localhost:4943/?canisterId=$(dfx canister id __Candid_UI)&id=$(dfx canister id test_token_eth)${NC}"
+echo -e "  • Orderbook:     ${YELLOW}http://localhost:4943/?canisterId=$(dfx canister id __Candid_UI)&id=$(dfx canister id orderbook)${NC}"
+echo -e "  • Escrow:        ${YELLOW}http://localhost:4943/?canisterId=$(dfx canister id __Candid_UI)&id=$(dfx canister id escrow)${NC}"
+echo -e "  • SIWE Provider: ${YELLOW}http://localhost:4943/?canisterId=$(dfx canister id __Candid_UI)&id=$(dfx canister id ic_siwe_provider)${NC}"
 echo ""
 echo -e "${BLUE}📚 Next Steps:${NC}"
 echo -e "  1. Test orderbook functions via Candid UI"
