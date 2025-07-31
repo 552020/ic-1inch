@@ -130,6 +130,39 @@ fn get_cross_chain_identity(eth_address: String) -> Option<types::CrossChainIden
     memory::get_cross_chain_identity(&eth_address).ok()
 }
 
+/// Get cross-chain identity by ICP principal - Used by: Frontend/Users
+#[ic_cdk::query]
+fn get_cross_chain_identity_by_principal(
+    principal: Principal,
+) -> Option<types::CrossChainIdentity> {
+    // Search through all identities to find one with matching principal
+    memory::get_all_cross_chain_identities()
+        .into_iter()
+        .find(|identity| identity.icp_principal == principal)
+}
+
+/// Derive ICP principal from ETH address using SIWE provider - Used by: Frontend/Users
+#[ic_cdk::update]
+async fn derive_principal_from_eth_address(
+    eth_address: String,
+) -> Result<Principal, types::FusionError> {
+    // Note: In practice, the SIWE provider canister ID should be retrieved from environment
+    // For now, using a placeholder - this would be configured during deployment
+    let siwe_provider_id = Principal::from_text("rdmx6-jaaaa-aaaah-qcaiq-cai")
+        .map_err(|_| types::FusionError::SystemError)?;
+
+    let result: Result<(Result<Vec<u8>, String>,), _> =
+        ic_cdk::call(siwe_provider_id, "get_principal", (eth_address,)).await;
+
+    match result {
+        Ok((Ok(principal_bytes),)) => {
+            Principal::try_from_slice(&principal_bytes).map_err(|_| types::FusionError::SystemError)
+        }
+        Ok((Err(_),)) => Err(types::FusionError::OrderNotFound),
+        Err(_) => Err(types::FusionError::SystemError),
+    }
+}
+
 /// Generate a unique order ID
 fn generate_order_id() -> String {
     let timestamp = ic_cdk::api::time();
