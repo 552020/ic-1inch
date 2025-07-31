@@ -1,6 +1,6 @@
 import { createConfig, http } from "wagmi";
 
-import { base, baseSepolia } from "wagmi/chains";
+import { mainnet, sepolia } from "wagmi/chains";
 import { walletConnect } from "wagmi/connectors";
 
 // Replace with your own WalletConnect project ID
@@ -24,13 +24,11 @@ const getRpcUrl = (network: string, fallback: string): string => {
 };
 
 export const wagmiConfig = createConfig({
-  chains: [base, baseSepolia], // Support both Base Mainnet and Base Sepolia
+  chains: [mainnet, sepolia], // Support both Ethereum Mainnet and Sepolia
   connectors: [walletConnect({ projectId: WALLETCONNECT_PROJECT_ID })],
   transports: {
-    [base.id]: http(getRpcUrl("base-mainnet", "https://mainnet.base.org")),
-    [baseSepolia.id]: http(
-      getRpcUrl("base-sepolia", "https://sepolia.base.org")
-    ),
+    [mainnet.id]: http(getRpcUrl("mainnet", "https://eth.llamarpc.com")),
+    [sepolia.id]: http(getRpcUrl("sepolia", "https://rpc.sepolia.org")),
   },
 });
 
