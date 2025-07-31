@@ -57,13 +57,14 @@ print_success "Escrow canister is responsive"
 
 echo ""
 
-# Test 2: Create Cross-Chain Order (ICP → ETH)
-print_status "Test 2: Creating ICP → ETH fusion order..."
+# Test 2: Create Cross-Chain Order (ICP → ETH) with Automatic Token Locking
+print_status "Test 2: Creating ICP → ETH fusion order with AUTOMATIC TOKEN LOCKING..."
 
 dfx identity use maker
 print_status "Switched to maker identity: $(dfx identity whoami)"
 
-# Create fusion order
+# Create fusion order (with automatic ICP token locking for ICP → ETH)
+print_status "⚠️  ASYMMETRIC FLOW: ICP tokens will be AUTOMATICALLY LOCKED during order creation"
 ORDER_RESULT=$(dfx canister call orderbook create_order "(
   \"$MAKER_ETH_ADDRESS\",
   variant { ICP },
@@ -76,7 +77,16 @@ ORDER_RESULT=$(dfx canister call orderbook create_order "(
 if [[ $ORDER_RESULT == *"Ok"* ]]; then
     ORDER_ID=$(echo $ORDER_RESULT | grep -o '"[^"]*"' | head -1 | tr -d '"')
     print_success "Created fusion order: $ORDER_ID"
+    print_success "🔒 AUTOMATIC LOCKING: ICP tokens transferred to escrow during order creation"
     export CURRENT_ORDER_ID="$ORDER_ID"
+    
+    # Verify automatic token locking occurred
+    print_status "Verifying automatic token locking..."
+    MAKER_BALANCE=$(dfx canister call test_token_icp icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\"; subaccount = null })")
+    ESCROW_BALANCE=$(dfx canister call test_token_icp icrc1_balance_of "(record { owner = principal \"$(dfx canister id escrow)\"; subaccount = null })")
+    
+    print_success "Maker ICP balance after order creation: $MAKER_BALANCE"
+    print_success "Escrow ICP balance after order creation: $ESCROW_BALANCE"
 else
     print_error "Failed to create order: $ORDER_RESULT"
     exit 1

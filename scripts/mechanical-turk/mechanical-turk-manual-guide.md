@@ -10,6 +10,24 @@ Step-by-step instructions for manually testing the Fusion+ Mechanical Turk cross
 
 **Important:** These tests focus on **canister function validation with real token transfers** using test tokens. Full cross-chain swaps require Ethereum contracts, MetaMask integration, and frontend components that are not covered in these basic tests.
 
+## 🔄 Asymmetric Flow Architecture
+
+**CRITICAL:** This implementation uses an **asymmetric flow** that behaves differently based on swap direction:
+
+### ICP → ETH Orders (Automatic Locking)
+- **Maker locks ICP immediately** during order creation
+- **Automatic token transfer** from maker to escrow canister
+- **Gas efficient** - maker commits upfront, reducing resolver risk
+- **Single transaction** - order creation + token locking combined
+
+### ETH → ICP Orders (Manual Flow)
+- **No automatic locking** during order creation
+- **Taker/resolver handles both sides** of the swap
+- **Traditional flow** - resolver locks both ETH and ICP tokens
+- **Two-step process** - order creation, then manual token locking
+
+This asymmetric design improves gas efficiency and user experience for ICP→ETH swaps while maintaining flexibility for ETH→ICP swaps.
+
 # Prerequisites
 
 ## Setup Instructions
@@ -100,10 +118,11 @@ dfx canister call test_token_eth icrc1_balance_of "(record { owner = principal \
 
 **Expected Result:** Both identities show 10 tokens (1000000000) in each token canister
 
-#### Step 1.3: Maker Creates Cross-Chain Order
+#### Step 1.3: Maker Creates Cross-Chain Order (ICP → ETH with Automatic Token Locking)
 
 ```bash
-# Create ICP → ETH fusion order
+# Create ICP → ETH fusion order with AUTOMATIC TOKEN LOCKING
+# ⚠️  IMPORTANT: For ICP → ETH orders, the maker's ICP tokens are AUTOMATICALLY LOCKED
 # Parameters explained:
 # - "0x742d35Cc6634C0532925a3b8D4C0532925a3b8D4"  # maker's ETH address
 # - variant { ICP }                                   # from_token (what maker is selling)
@@ -121,9 +140,12 @@ dfx canister call orderbook create_order "(
 )"
 ```
 
-**Expected Result:** `(variant { Ok = "fusion_1234567890_..." })` (Order ID returned)
+**Expected Result:** 
+- `(variant { Ok = "fusion_1234567890_..." })` (Order ID returned)
+- **🔒 AUTOMATIC TOKEN LOCKING:** The maker's 10 ICP tokens are immediately transferred to escrow
+- **📝 Console Output:** Shows automatic locking message for ICP→ETH order
 
-#### Step 1.4: Verify Order Creation
+#### Step 1.4: Verify Order Creation and Automatic Token Locking
 
 ```bash
 # Get the order ID from the previous result
@@ -134,9 +156,24 @@ dfx canister call orderbook get_fusion_order_status "(\"$ORDER_ID\")"
 
 # List all active orders
 dfx canister call orderbook get_active_fusion_orders '()'
+
+# ✨ NEW: Verify automatic token locking occurred
+# Check maker's balance decreased (should show 0 ICP tokens)
+dfx canister call test_token_icp icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\"; subaccount = null })"
+
+# Check escrow canister received the tokens (should show 10 ICP tokens)
+dfx canister call test_token_icp icrc1_balance_of "(record { owner = principal \"$(dfx canister id escrow)\"; subaccount = null })"
+
+# List escrows to see the automatic lock
+dfx canister call escrow list_fusion_escrows '()'
 ```
 
-**Expected Result:** Order shows status `Pending`, correct amounts, and maker details
+**Expected Result:** 
+- Order shows status `Pending`, correct amounts, and maker details
+- **🔒 AUTOMATIC LOCKING VERIFIED:** 
+  - Maker's ICP balance: 0 tokens (transferred to escrow)
+  - Escrow's ICP balance: 10 tokens (locked for the order)
+  - Escrow list shows funded escrow with order ID
 
 #### Step 1.5: Check Orders by Maker
 
@@ -531,15 +568,17 @@ dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$
 
 ---
 
-## Scenario 4: ETH → ICP Swap Testing
+## Scenario 4: ETH → ICP Swap Testing (No Automatic Locking)
 
-### Step 4.1: Create ETH → ICP Order
+### Step 4.1: Create ETH → ICP Order (Manual Flow)
 
 ```bash
 # Switch to maker identity
 dfx identity use maker
 
-# Create ETH → ICP fusion order
+# Create ETH → ICP fusion order (NO AUTOMATIC LOCKING)
+# ⚠️  IMPORTANT: For ETH → ICP orders, NO automatic token locking occurs
+# The taker/resolver will handle both ETH and ICP locking
 dfx canister call orderbook create_order "(
   \"$MAKER_ETH_ADDRESS\",
   variant { ETH },
@@ -548,9 +587,19 @@ dfx canister call orderbook create_order "(
   ${ICP_AMOUNT}:nat64,
   $(($(date +%s) + 3600))000000000:nat64
 )"
+
+# Verify NO automatic locking occurred
+# Check maker's ICP balance (should still be 10 tokens)
+dfx canister call test_token_icp icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\"; subaccount = null })"
+
+# Check escrow canister balance (should be empty for this order)
+dfx canister call test_token_icp icrc1_balance_of "(record { owner = principal \"$(dfx canister id escrow)\"; subaccount = null })"
 ```
 
-**Expected Result:** New order created with ETH → ICP direction
+**Expected Result:** 
+- New order created with ETH → ICP direction
+- **🚫 NO AUTOMATIC LOCKING:** Maker's ICP tokens remain in their account
+- **📝 Asymmetric Flow:** Only ICP→ETH orders trigger automatic locking
 
 #### Step 4.2: Simulate EIP-712 Signature
 
