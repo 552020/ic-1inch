@@ -1,87 +1,38 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { ArrowRight, TrendingUp, AlertCircle, CheckCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
+import { useTestMode, OrderData, Order } from "../hooks/useTestMode";
+import { OrderForm } from "./OrderForm";
+import { OrderStatus } from "./OrderStatus";
 
 interface SwapInterfaceProps {
-  onOrderCreated?: (order: any) => void;
+  onOrderCreated?: (order: Order) => void;
+  testMode?: boolean;
 }
 
-interface MarketRate {
-  pair: string;
-  rate: number;
-  change24h: number;
-  lastUpdated: string;
-}
-
-export default function SwapInterface({ onOrderCreated }: SwapInterfaceProps) {
+export default function SwapInterface({
+  onOrderCreated,
+  testMode = true,
+}: SwapInterfaceProps) {
   const [fromToken, setFromToken] = useState<string>("ICP");
   const [toToken, setToToken] = useState<string>("ETH");
   const [fromAmount, setFromAmount] = useState<string>("");
   const [toAmount, setToAmount] = useState<string>("");
   const [isCreating, setIsCreating] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [marketRates, setMarketRates] = useState<MarketRate[]>([]);
-  const [isLoadingRates, setIsLoadingRates] = useState(false);
+  const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
+  const [showOrderStatus, setShowOrderStatus] = useState(false);
+  const [secret, setSecret] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock market rate fetching (in real app, this would call DEX APIs)
-  const fetchMarketRates = async () => {
-    setIsLoadingRates(true);
-    try {
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Mock market rates (in real app, fetch from CoinGecko, DEX APIs, etc.)
-      const mockRates: MarketRate[] = [
-        {
-          pair: "ICP/ETH",
-          rate: 0.00285, // 1 ICP = 0.00285 ETH
-          change24h: 2.34,
-          lastUpdated: new Date().toISOString(),
-        },
-        {
-          pair: "ETH/ICP",
-          rate: 350.88, // 1 ETH = 350.88 ICP
-          change24h: -2.29,
-          lastUpdated: new Date().toISOString(),
-        },
-      ];
-
-      setMarketRates(mockRates);
-    } catch (error) {
-      console.error("Failed to fetch market rates:", error);
-    } finally {
-      setIsLoadingRates(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchMarketRates();
-    // Refresh rates every 30 seconds
-    const interval = setInterval(fetchMarketRates, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const getCurrentMarketRate = () => {
-    const pair = `${fromToken}/${toToken}`;
-    return marketRates.find((rate) => rate.pair === pair);
-  };
-
-  const calculateMarketPrice = (amount: string) => {
-    const rate = getCurrentMarketRate();
-    if (!rate || !amount) return "";
-    return (parseFloat(amount) * rate.rate).toFixed(6);
-  };
+  const {
+    simulateOrderCreation,
+    simulateTokenLocking,
+    simulateRelayerVerification,
+    simulateOrderRollback,
+  } = useTestMode();
 
   const handleSwapDirection = () => {
     const tempToken = fromToken;
@@ -92,330 +43,245 @@ export default function SwapInterface({ onOrderCreated }: SwapInterfaceProps) {
     setToAmount(tempAmount);
   };
 
-  const handleFromAmountChange = (value: string) => {
-    setFromAmount(value);
-    // Auto-calculate market price for reference
-    if (value && !toAmount) {
-      const marketPrice = calculateMarketPrice(value);
-      if (marketPrice) {
-        setToAmount(marketPrice);
-      }
-    }
-  };
-
   const handleCreateOrder = () => {
     if (!fromAmount || !toAmount) return;
+    setError(null);
     setShowConfirmation(true);
   };
 
   const handleConfirmOrder = async () => {
     setIsCreating(true);
+    setError(null);
+
+    const orderData: OrderData = {
+      fromToken,
+      toToken,
+      fromAmount,
+      toAmount,
+    };
+
     try {
-      const currentRate = getCurrentMarketRate();
-      const userRate = parseFloat(toAmount) / parseFloat(fromAmount);
+      // Step 1: Simulate order creation
+      const order = await simulateOrderCreation(orderData);
 
-      const order = {
-        id: `fusion_${Date.now()}`,
-        fromToken,
-        toToken,
-        fromAmount: parseFloat(fromAmount),
-        toAmount: parseFloat(toAmount),
-        userRate,
-        marketRate: currentRate?.rate || 0,
-        priceImpact: currentRate
-          ? ((userRate - currentRate.rate) / currentRate.rate) * 100
-          : 0,
-        status: "pending" as const,
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-      };
+      // Step 2: Simulate token locking (atomic step for ICP → ETH)
+      if (fromToken === "ICP" && toToken === "ETH") {
+        await simulateTokenLocking(orderData);
+        // Update order status to show tokens are locked
+        order.status = "accepted" as const;
+        order.resolver = "0x742d35Cc6634C0532925a3b8D4C0532925a3b8D4";
+      }
 
+      setCurrentOrder(order);
       onOrderCreated?.(order);
 
-      // Reset form
-      setFromAmount("");
-      setToAmount("");
+      // Show order status instead of resetting form
       setShowConfirmation(false);
+      setShowOrderStatus(true);
+
+      // Step 3: Simulate relayer verification and confirmation request
+      if (testMode) {
+        // Wait for relayer to verify both chains
+        const verifiedOrder = await simulateRelayerVerification(order);
+        setCurrentOrder(verifiedOrder);
+      } else {
+        // For ETH → ICP orders, simulate resolver acceptance later
+        if (fromToken === "ETH" && toToken === "ICP") {
+          setTimeout(() => {
+            if (order.status === "pending") {
+              const updatedOrder = {
+                ...order,
+                status: "accepted" as const,
+                resolver: "0x742d35Cc6634C0532925a3b8D4C0532925a3b8D4",
+              };
+              setCurrentOrder(updatedOrder);
+
+              // After resolver accepts, wait for secret sharing
+              setTimeout(() => {
+                const awaitingSecretOrder = {
+                  ...updatedOrder,
+                  status: "awaiting_secret" as const,
+                };
+                setCurrentOrder(awaitingSecretOrder);
+              }, 3000);
+            }
+          }, 5000);
+        }
+      }
     } catch (error) {
       console.error("Failed to create order:", error);
+      setError(
+        error instanceof Error ? error.message : "Unknown error occurred"
+      );
+
+      // If token locking failed, simulate rollback
+      if (
+        error instanceof Error &&
+        error.message.includes("Token locking failed")
+      ) {
+        await simulateOrderRollback(orderData);
+      }
     } finally {
       setIsCreating(false);
     }
   };
 
-  const getPriceImpact = () => {
-    const currentRate = getCurrentMarketRate();
-    if (!currentRate || !fromAmount || !toAmount) return 0;
+  const handleConfirmSwap = async () => {
+    if (!currentOrder) return;
 
-    const userRate = parseFloat(toAmount) / parseFloat(fromAmount);
-    return ((userRate - currentRate.rate) / currentRate.rate) * 100;
+    setIsCreating(true);
+    try {
+      // Simulate confirmation delay
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Move to secret sharing phase
+      const awaitingSecretOrder = {
+        ...currentOrder,
+        status: "awaiting_secret" as const,
+      };
+      setCurrentOrder(awaitingSecretOrder);
+    } catch (error) {
+      console.error("Failed to confirm swap:", error);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
-  const getPriceImpactColor = (impact: number) => {
-    if (Math.abs(impact) < 1) return "text-green-600";
-    if (Math.abs(impact) < 5) return "text-yellow-600";
-    return "text-red-600";
+  const handleShareSecret = async () => {
+    if (!currentOrder || !secret.trim()) return;
+
+    setIsCreating(true);
+    try {
+      // Simulate secret sharing
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      const completedOrder = {
+        ...currentOrder,
+        status: "completed" as const,
+        secret: secret.trim(),
+      };
+      setCurrentOrder(completedOrder);
+
+      // Auto-reset after completion
+      setTimeout(() => {
+        setShowOrderStatus(false);
+        setCurrentOrder(null);
+        setSecret("");
+        setFromAmount("");
+        setToAmount("");
+      }, 5000);
+    } catch (error) {
+      console.error("Failed to share secret:", error);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
-  if (showConfirmation) {
-    const priceImpact = getPriceImpact();
-    const currentRate = getCurrentMarketRate();
+  const handleNewOrder = () => {
+    setShowOrderStatus(false);
+    setCurrentOrder(null);
+    setSecret("");
+    setFromAmount("");
+    setToAmount("");
+  };
 
+  // Order Status View
+  if (showOrderStatus && currentOrder) {
     return (
-      <div className="max-w-md mx-auto space-y-4">
+      <OrderStatus
+        order={currentOrder}
+        secret={secret}
+        isCreating={isCreating}
+        onSecretChange={setSecret}
+        onShareSecret={handleShareSecret}
+        onConfirmSwap={handleConfirmSwap}
+        onNewOrder={handleNewOrder}
+      />
+    );
+  }
+
+  // Main Swap Interface
+  return (
+    <div className="max-w-md mx-auto space-y-4">
+      {/* Test Mode Indicator */}
+      {testMode && (
+        <Alert className="border-yellow-200 bg-yellow-50">
+          <AlertCircle className="h-4 w-4 text-yellow-600" />
+          <AlertDescription className="text-yellow-800">
+            Test Mode - Simulating atomic order creation and token locking
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Error Display */}
+      {error && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <OrderForm
+        fromToken={fromToken}
+        toToken={toToken}
+        fromAmount={fromAmount}
+        toAmount={toAmount}
+        isCreating={isCreating}
+        testMode={testMode}
+        onFromTokenChange={setFromToken}
+        onToTokenChange={setToToken}
+        onFromAmountChange={setFromAmount}
+        onToAmountChange={setToAmount}
+        onSwapDirection={handleSwapDirection}
+        onCreateOrder={handleCreateOrder}
+      />
+
+      {/* Confirmation Dialog */}
+      {showConfirmation && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              Confirm Order
-            </CardTitle>
+            <CardTitle>Confirm Order</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Order Summary */}
-            <div className="space-y-2">
+            <div className="space-y-2 p-3 bg-muted rounded-lg">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">You pay:</span>
+                <span>You pay:</span>
                 <span className="font-medium">
                   {fromAmount} {fromToken}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">You receive:</span>
+                <span>You receive:</span>
                 <span className="font-medium">
                   {toAmount} {toToken}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Your rate:</span>
-                <span className="font-medium">
-                  1 {fromToken} ={" "}
-                  {(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(6)}{" "}
-                  {toToken}
-                </span>
-              </div>
-              {currentRate && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Market rate:</span>
-                  <span className="font-medium">
-                    1 {fromToken} = {currentRate.rate.toFixed(6)} {toToken}
-                  </span>
-                </div>
-              )}
-              {Math.abs(priceImpact) > 0.1 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Price impact:</span>
-                  <span
-                    className={`font-medium ${getPriceImpactColor(
-                      priceImpact
-                    )}`}
-                  >
-                    {priceImpact > 0 ? "+" : ""}
-                    {priceImpact.toFixed(2)}%
-                  </span>
+              {fromToken === "ICP" && toToken === "ETH" && (
+                <div className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                  ⚡ ICP → ETH: Tokens will be locked immediately during order
+                  creation
                 </div>
               )}
             </div>
-
-            {/* Warnings */}
-            {Math.abs(priceImpact) > 5 && (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  High price impact! Your order rate differs significantly from
-                  market rate.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                This is a limit order. It will be filled when a resolver accepts
-                your terms. Your {fromToken} tokens will be locked until the
-                order is filled or expires.
-              </AlertDescription>
-            </Alert>
-
-            {/* Action Buttons */}
             <div className="flex gap-2">
               <Button
-                variant="outline"
                 onClick={() => setShowConfirmation(false)}
+                variant="outline"
                 className="flex-1"
-                disabled={isCreating}
               >
-                Back
+                Cancel
               </Button>
               <Button
                 onClick={handleConfirmOrder}
                 disabled={isCreating}
                 className="flex-1"
               >
-                {isCreating ? "Creating..." : "Confirm Order"}
+                {isCreating ? "Creating..." : "Confirm"}
               </Button>
             </div>
           </CardContent>
         </Card>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-md mx-auto space-y-4">
-      {/* Market Rates Display */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <TrendingUp className="w-4 h-4" />
-            Market Rates (Reference Only)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {isLoadingRates ? (
-            <div className="text-sm text-muted-foreground">
-              Loading rates...
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              {marketRates.map((rate) => (
-                <div key={rate.pair} className="flex justify-between">
-                  <span className="text-muted-foreground">{rate.pair}:</span>
-                  <div className="text-right">
-                    <div className="font-medium">{rate.rate.toFixed(6)}</div>
-                    <div
-                      className={`text-xs ${
-                        rate.change24h >= 0 ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      {rate.change24h >= 0 ? "+" : ""}
-                      {rate.change24h.toFixed(2)}%
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="text-xs text-muted-foreground mt-2">
-            Updated:{" "}
-            {marketRates[0]?.lastUpdated
-              ? new Date(marketRates[0].lastUpdated).toLocaleTimeString()
-              : "Never"}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Swap Interface */}
-      <Card>
-        <CardContent className="p-6 space-y-4">
-          {/* From Token */}
-          <div className="space-y-2">
-            <Label>From</Label>
-            <div className="flex gap-2">
-              <Select value={fromToken} onValueChange={setFromToken}>
-                <SelectTrigger className="w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ICP">ICP</SelectItem>
-                  <SelectItem value="ETH">ETH</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                placeholder="0.0"
-                value={fromAmount}
-                onChange={(e) => handleFromAmountChange(e.target.value)}
-                className="flex-1"
-              />
-            </div>
-          </div>
-
-          {/* Swap Direction */}
-          <div className="flex justify-center">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSwapDirection}
-              className="rounded-full p-2"
-            >
-              <ArrowRight className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {/* To Token */}
-          <div className="space-y-2">
-            <Label>To</Label>
-            <div className="flex gap-2">
-              <Select value={toToken} onValueChange={setToToken}>
-                <SelectTrigger className="w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ICP">ICP</SelectItem>
-                  <SelectItem value="ETH">ETH</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                placeholder="0.0"
-                value={toAmount}
-                onChange={(e) => setToAmount(e.target.value)}
-                className="flex-1"
-              />
-            </div>
-          </div>
-
-          {/* Rate Display */}
-          {fromAmount && toAmount && (
-            <div className="space-y-2 p-3 bg-muted rounded-lg">
-              <div className="text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Your rate:</span>
-                  <span className="font-medium">
-                    1 {fromToken} ={" "}
-                    {(parseFloat(toAmount) / parseFloat(fromAmount)).toFixed(6)}{" "}
-                    {toToken}
-                  </span>
-                </div>
-                {getCurrentMarketRate() && (
-                  <>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Market rate:
-                      </span>
-                      <span>
-                        {getCurrentMarketRate()!.rate.toFixed(6)} {toToken}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Difference:</span>
-                      <span className={getPriceImpactColor(getPriceImpact())}>
-                        {getPriceImpact() > 0 ? "+" : ""}
-                        {getPriceImpact().toFixed(2)}%
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Create Order Button */}
-          <Button
-            onClick={handleCreateOrder}
-            disabled={!fromAmount || !toAmount || fromToken === toToken}
-            className="w-full"
-          >
-            Create Limit Order
-          </Button>
-
-          {fromToken === toToken && (
-            <div className="text-sm text-red-600 text-center">
-              Please select different tokens
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      )}
     </div>
   );
 }

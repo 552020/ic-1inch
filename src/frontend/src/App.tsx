@@ -9,23 +9,13 @@ import LoginPage from "./components/layout/LoginPage";
 import Header from "./components/layout/Header";
 import SwapInterface from "./components/SwapInterface";
 import OrderBook from "./components/OrderBook";
-
-interface Order {
-  id: string;
-  fromToken: string;
-  toToken: string;
-  fromAmount: number;
-  toAmount: number;
-  status: "pending" | "accepted" | "completed" | "failed";
-  createdAt: string;
-  maker?: string;
-  resolver?: string;
-}
+import { Order } from "./hooks/useTestMode";
 
 function App() {
   const [showLegacy, setShowLegacy] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [userRole, setUserRole] = useState<"maker" | "resolver">("maker");
+  const [testMode, setTestMode] = useState(true); // Default to test mode
 
   const handleOrderCreated = (order: Order) => {
     setOrders((prev) => [order, ...prev]);
@@ -45,7 +35,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header testMode={testMode} onTestModeChange={setTestMode} />
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-8">
@@ -88,7 +78,10 @@ function App() {
                 </TabsList>
 
                 <TabsContent value="swap" className="mt-6">
-                  <SwapInterface onOrderCreated={handleOrderCreated} />
+                  <SwapInterface
+                    onOrderCreated={handleOrderCreated}
+                    testMode={testMode}
+                  />
                 </TabsContent>
 
                 <TabsContent value="orders" className="mt-6">

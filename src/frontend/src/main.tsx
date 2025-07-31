@@ -10,7 +10,7 @@ import { SiweIdentityProvider } from "ic-siwe-js/react";
 import { WagmiProvider } from "wagmi";
 import { wagmiConfig } from "./wagmi/wagmi.config.ts";
 import { canisterId } from "../../ic_siwe_provider/declarations/index";
-import { Toaster } from "@/components/ui/toaster.tsx";
+import { Toaster } from "@/components/ui/toaster";
 import AuthSync from "./contexts/AuthSync.tsx";
 
 export const queryClient = new QueryClient();
