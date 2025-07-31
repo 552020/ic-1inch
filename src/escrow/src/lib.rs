@@ -190,20 +190,17 @@ async fn transfer_tokens_to_escrow(
     amount: u64,
 ) -> Result<(), EscrowError> {
     let escrow_principal = ic_cdk::id();
-    
+
     let transfer_args = TransferArg {
         from_subaccount: None,
-        to: Account {
-            owner: escrow_principal,
-            subaccount: None,
-        },
+        to: Account { owner: escrow_principal, subaccount: None },
         amount: Nat::from(amount),
         fee: None,
         memo: None,
         created_at_time: None,
     };
 
-    let result: Result<(Result<u64, TransferError>,), _> = 
+    let result: Result<(Result<u64, TransferError>,), _> =
         call(token_canister, "icrc1_transfer", (transfer_args,)).await;
 
     match result {
@@ -223,20 +220,17 @@ async fn transfer_tokens_from_escrow(
     amount: u64,
 ) -> Result<(), EscrowError> {
     let _escrow_principal = ic_cdk::id();
-    
+
     let transfer_args = TransferArg {
         from_subaccount: None,
-        to: Account {
-            owner: to,
-            subaccount: None,
-        },
+        to: Account { owner: to, subaccount: None },
         amount: Nat::from(amount),
         fee: None,
         memo: None,
         created_at_time: None,
     };
 
-    let result: Result<(Result<u64, TransferError>,), _> = 
+    let result: Result<(Result<u64, TransferError>,), _> =
         call(token_canister, "icrc1_transfer", (transfer_args,)).await;
 
     match result {
@@ -248,18 +242,20 @@ async fn transfer_tokens_from_escrow(
 
 /// Get test token canister ID based on token type
 fn get_test_token_canister(token: &Token) -> Result<Principal, EscrowError> {
-    // For mechanical turk testing, we'll use test_token_a for ICP and test_token_b for ETH
+    // For mechanical turk testing, we'll use test_token_icp for ICP and test_token_eth for ETH
     // In production, this would be the actual ICP ledger canister
     match token {
         Token::ICP => {
-            // Use test_token_a for ICP simulation
+            // Use test_token_icp for ICP simulation
             // TODO: In production, this would be the actual ICP ledger canister
-            Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai").map_err(|_| EscrowError::SystemError)
+            Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")
+                .map_err(|_| EscrowError::SystemError)
         }
         Token::ETH => {
-            // Use test_token_b for ETH simulation
+            // Use test_token_eth for ETH simulation
             // TODO: In production, this would be the actual ICP ledger canister
-            Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai").map_err(|_| EscrowError::SystemError)
+            Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")
+                .map_err(|_| EscrowError::SystemError)
         }
     }
 }

@@ -20,14 +20,14 @@
       "source": ["src/frontend/dist"],
       "type": "assets"
     },
-    "test_token_a": {
-      "candid": "src/test_token_a/test_token_a.did",
-      "package": "test_token_a",
+    "test_token_icp": {
+      "candid": "src/test_token_icp/test_token_icp.did",
+      "package": "test_token_icp",
       "type": "rust"
     },
-    "test_token_b": {
-      "candid": "src/test_token_b/test_token_b.did",
-      "package": "test_token_b",
+    "test_token_eth": {
+      "candid": "src/test_token_eth/test_token_eth.did",
+      "package": "test_token_eth",
       "type": "rust"
     },
     "ic_siwe_provider": {

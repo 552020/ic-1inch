@@ -40,8 +40,8 @@ dfx canister call orderbook get_active_fusion_orders '()'
 dfx canister call escrow list_fusion_escrows '()'
 
 # Test token canisters
-dfx canister call test_token_a icrc1_name '()'
-dfx canister call test_token_b icrc1_name '()'
+dfx canister call test_token_icp icrc1_name '()'
+dfx canister call test_token_eth icrc1_name '()'
 
 # Check identities are created
 dfx identity list
@@ -69,16 +69,16 @@ dfx identity use maker
 dfx identity whoami
 
 # Fund maker with test tokens (simulating ICP balance)
-dfx canister call test_token_a mint_tokens "(principal \"$MAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
-dfx canister call test_token_b mint_tokens "(principal \"$MAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
+dfx canister call test_token_icp mint_tokens "(principal \"$MAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
+dfx canister call test_token_eth mint_tokens "(principal \"$MAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
 
 # Switch to taker identity
 dfx identity use taker
 dfx identity whoami
 
 # Fund taker with test tokens
-dfx canister call test_token_a mint_tokens "(principal \"$TAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
-dfx canister call test_token_b mint_tokens "(principal \"$TAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
+dfx canister call test_token_icp mint_tokens "(principal \"$TAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
+dfx canister call test_token_eth mint_tokens "(principal \"$TAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
 
 # Switch back to maker for order creation
 dfx identity use maker
@@ -90,12 +90,12 @@ dfx identity use maker
 
 ```bash
 # Check maker's token balances
-dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\"; subaccount = null })"
-dfx canister call test_token_b icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\"; subaccount = null })"
+dfx canister call test_token_icp icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\"; subaccount = null })"
+dfx canister call test_token_eth icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\"; subaccount = null })"
 
 # Check taker's token balances
-dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$TAKER_PRINCIPAL\"; subaccount = null })"
-dfx canister call test_token_b icrc1_balance_of "(record { owner = principal \"$TAKER_PRINCIPAL\"; subaccount = null })"
+dfx canister call test_token_icp icrc1_balance_of "(record { owner = principal \"$TAKER_PRINCIPAL\"; subaccount = null })"
+dfx canister call test_token_eth icrc1_balance_of "(record { owner = principal \"$TAKER_PRINCIPAL\"; subaccount = null })"
 ```
 
 **Expected Result:** Both identities show 10 tokens (1000000000) in each token canister
