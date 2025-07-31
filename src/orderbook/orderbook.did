@@ -39,7 +39,6 @@ type Token = variant { ETH; ICP };
 type UserRole = variant { Maker; Resolver };
 service : {
   accept_fusion_order : (text, text) -> (Result);
-  cancel_fusion_order : (text) -> (Result);
   create_fusion_order : (text, Token, Token, nat64, nat64, nat64) -> (Result_1);
   derive_principal_from_eth_address : (text) -> (Result_2);
   get_active_fusion_orders : () -> (vec FusionOrder) query;
@@ -47,10 +46,8 @@ service : {
   get_cross_chain_identity_by_principal : (principal) -> (
       opt CrossChainIdentity,
     ) query;
-  get_expired_orders : () -> (vec FusionOrder) query;
   get_fusion_order_status : (text) -> (opt FusionOrder) query;
   get_orders_by_maker : (principal) -> (vec FusionOrder) query;
-  get_orders_by_status : (OrderStatus) -> (vec FusionOrder) query;
   register_cross_chain_identity : (text, UserRole) -> (Result);
   update_order_status : (text, OrderStatus) -> (Result);
 }

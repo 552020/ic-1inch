@@ -1,8 +1,8 @@
 [workspace]
 members = [
 	"src/backend",
-	"src/test_token_a",
-	"src/test_token_b",
+	"src/test_token_icp",
+	"src/test_token_eth",
 	"src/orderbook",
 	"src/escrow",
 ]
