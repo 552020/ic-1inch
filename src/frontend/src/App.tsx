@@ -5,11 +5,12 @@ import { Separator } from "./components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
 import AppLegacy from "./pages/AppLegacy";
 import { GreetBetter } from "./components/GreetBetter";
-import LoginPage from "./components/layout/LoginPage";
 import Header from "./components/layout/Header";
 import SwapInterface from "./components/SwapInterface";
 import OrderBook from "./components/OrderBook";
 import { Order } from "./hooks/useTestMode";
+import { useSiwe } from "ic-siwe-js/react";
+import { useAccount } from "wagmi";
 
 function App() {
   const [showLegacy, setShowLegacy] = useState(false);
@@ -39,14 +40,6 @@ function App() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto space-y-8">
-          {/* Login Section */}
-          <Card>
-            <CardContent className="p-6">
-              <LoginPage />
-            </CardContent>
-          </Card>
-
-          <Separator />
 
           {/* Fusion Swap Interface */}
           <Card>
