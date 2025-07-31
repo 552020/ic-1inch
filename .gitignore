@@ -32,5 +32,7 @@ package-lock.json
 internal/
 secretus/
 docs/implementation/
+docs/1inch-resolver-example/
+docs/SIWE/
 
 pnpm-lock.yaml
