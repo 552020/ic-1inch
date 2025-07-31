@@ -106,6 +106,30 @@ fn update_order_status(order_id: String, status: OrderStatus) -> Result<(), Fusi
     Ok(())
 }
 
+/// Register or update cross-chain identity - Used by: Users
+#[ic_cdk::update]
+fn register_cross_chain_identity(
+    eth_address: String,
+    role: types::UserRole,
+) -> Result<(), types::FusionError> {
+    let caller = ic_cdk::caller();
+
+    let identity =
+        types::CrossChainIdentity { eth_address: eth_address.clone(), icp_principal: caller, role };
+
+    memory::store_cross_chain_identity(identity)?;
+
+    ic_cdk::println!("Registered cross-chain identity: {} -> {}", eth_address, caller.to_text());
+
+    Ok(())
+}
+
+/// Get cross-chain identity by ETH address - Used by: Frontend/Users
+#[ic_cdk::query]
+fn get_cross_chain_identity(eth_address: String) -> Option<types::CrossChainIdentity> {
+    memory::get_cross_chain_identity(&eth_address).ok()
+}
+
 /// Generate a unique order ID
 fn generate_order_id() -> String {
     let timestamp = ic_cdk::api::time();

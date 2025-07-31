@@ -1,31 +1,38 @@
-type Token = variant { ICP; ETH };
-type OrderStatus = variant { Pending; Accepted; Completed; Failed };
-type FusionOrder = record {
-  id : text;
-  maker_eth_address : text;
-  maker_icp_principal : principal;
-  from_token : Token;
-  to_token : Token;
-  from_amount : nat64;
-  to_amount : nat64;
-  status : OrderStatus;
-  created_at : nat64;
-  expires_at : nat64;
+type CrossChainIdentity = record {
+  role : UserRole;
+  eth_address : text;
+  icp_principal : principal;
 };
 type FusionError = variant {
+  SystemError;
   OrderNotFound;
   InsufficientBalance;
   Unauthorized;
-  SystemError;
 };
-type Result = variant { Ok : text; Err : FusionError };
-type Result_1 = variant { Ok; Err : FusionError };
-
+type FusionOrder = record {
+  id : text;
+  to_token : Token;
+  status : OrderStatus;
+  from_amount : nat64;
+  from_token : Token;
+  maker_eth_address : text;
+  created_at : nat64;
+  to_amount : nat64;
+  expires_at : nat64;
+  maker_icp_principal : principal;
+};
+type OrderStatus = variant { Failed; Accepted; Completed; Pending };
+type Result = variant { Ok; Err : FusionError };
+type Result_1 = variant { Ok : text; Err : FusionError };
+type Token = variant { ETH; ICP };
+type UserRole = variant { Maker; Resolver };
 service : {
-  create_fusion_order : (text, Token, Token, nat64, nat64, nat64) -> (Result);
-  accept_fusion_order : (text, text) -> (Result_1);
+  accept_fusion_order : (text, text) -> (Result);
+  create_fusion_order : (text, Token, Token, nat64, nat64, nat64) -> (Result_1);
   get_active_fusion_orders : () -> (vec FusionOrder) query;
+  get_cross_chain_identity : (text) -> (opt CrossChainIdentity) query;
   get_fusion_order_status : (text) -> (opt FusionOrder) query;
   get_orders_by_maker : (principal) -> (vec FusionOrder) query;
-  update_order_status : (text, OrderStatus) -> (Result_1);
+  register_cross_chain_identity : (text, UserRole) -> (Result);
+  update_order_status : (text, OrderStatus) -> (Result);
 }

@@ -32,6 +32,21 @@ pub enum OrderStatus {
     Failed,    // Swap failed
 }
 
+/// Cross-chain identity linking ETH address to ICP principal
+#[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
+pub struct CrossChainIdentity {
+    pub eth_address: String,
+    pub icp_principal: Principal,
+    pub role: UserRole,
+}
+
+/// User roles in the fusion system
+#[derive(Clone, Debug, CandidType, Deserialize, Serialize, PartialEq)]
+pub enum UserRole {
+    Maker,
+    Resolver,
+}
+
 /// Fusion-specific error types
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
 pub enum FusionError {
