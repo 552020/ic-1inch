@@ -15,6 +15,17 @@ async fn create_fusion_order(
     expiration: u64,
 ) -> Result<String, FusionError> {
     let caller = ic_cdk::caller();
+    let current_time = ic_cdk::api::time();
+
+    // Validate amounts
+    if from_amount == 0 || to_amount == 0 {
+        return Err(FusionError::InvalidAmount);
+    }
+
+    // Validate expiration is in the future
+    if expiration <= current_time {
+        return Err(FusionError::InvalidExpiration);
+    }
 
     // Generate unique order ID
     let order_id = generate_order_id();
@@ -24,13 +35,17 @@ async fn create_fusion_order(
         id: order_id.clone(),
         maker_eth_address: maker_eth_address.clone(),
         maker_icp_principal: caller,
+        resolver_eth_address: None,
+        resolver_icp_principal: None,
         from_token,
         to_token,
         from_amount,
         to_amount,
         status: OrderStatus::Pending,
-        created_at: ic_cdk::api::time(),
+        created_at: current_time,
         expires_at: expiration,
+        accepted_at: None,
+        completed_at: None,
     };
 
     // Store the order
@@ -48,24 +63,34 @@ async fn accept_fusion_order(
     resolver_eth_address: String,
 ) -> Result<(), FusionError> {
     let caller = ic_cdk::caller();
+    let current_time = ic_cdk::api::time();
 
     // Get the order
     let mut order = memory::get_fusion_order(&order_id)?;
 
     // Verify order is still pending
     if order.status != OrderStatus::Pending {
-        return Err(FusionError::SystemError);
+        return Err(FusionError::OrderNotPending);
     }
 
     // Check if order has expired
-    if ic_cdk::api::time() > order.expires_at {
+    if current_time > order.expires_at {
         order.status = OrderStatus::Failed;
         memory::store_fusion_order(order)?;
-        return Err(FusionError::SystemError);
+        return Err(FusionError::OrderExpired);
     }
+
+    // TODO: Check if resolver is whitelisted (for production)
+    // For MVP, allow any resolver
+    // if !is_resolver_whitelisted(caller) {
+    //     return Err(FusionError::ResolverNotWhitelisted);
+    // }
 
     // Update order with resolver info
     order.status = OrderStatus::Accepted;
+    order.resolver_eth_address = Some(resolver_eth_address.clone());
+    order.resolver_icp_principal = Some(caller);
+    order.accepted_at = Some(current_time);
     memory::store_fusion_order(order)?;
 
     ic_cdk::println!("Order {} accepted by resolver {}", order_id, resolver_eth_address);
@@ -101,9 +126,59 @@ fn get_orders_by_maker(maker_principal: Principal) -> Vec<FusionOrder> {
 #[ic_cdk::update]
 fn update_order_status(order_id: String, status: OrderStatus) -> Result<(), FusionError> {
     let mut order = memory::get_fusion_order(&order_id)?;
-    order.status = status;
+    let current_time = ic_cdk::api::time();
+    
+    order.status = status.clone();
+    
+    // Update completion timestamp if order is completed
+    if status == OrderStatus::Completed {
+        order.completed_at = Some(current_time);
+    }
+    
     memory::store_fusion_order(order)?;
     Ok(())
+}
+
+/// Cancel an order (for makers) - Used by: Makers
+#[ic_cdk::update]
+fn cancel_fusion_order(order_id: String) -> Result<(), FusionError> {
+    let caller = ic_cdk::caller();
+    let mut order = memory::get_fusion_order(&order_id)?;
+
+    // Verify caller is the maker
+    if order.maker_icp_principal != caller {
+        return Err(FusionError::Unauthorized);
+    }
+
+    // Only allow cancellation of pending orders
+    if order.status != OrderStatus::Pending {
+        return Err(FusionError::OrderNotPending);
+    }
+
+    order.status = OrderStatus::Failed;
+    memory::store_fusion_order(order)?;
+
+    ic_cdk::println!("Order {} cancelled by maker {}", order_id, caller.to_text());
+    Ok(())
+}
+
+/// Get orders by status - Used by: Frontend/Users
+#[ic_cdk::query]
+fn get_orders_by_status(status: OrderStatus) -> Vec<FusionOrder> {
+    memory::get_all_fusion_orders()
+        .into_iter()
+        .filter(|order| order.status == status)
+        .collect()
+}
+
+/// Get expired orders - Used by: System/Cleanup
+#[ic_cdk::query]
+fn get_expired_orders() -> Vec<FusionOrder> {
+    let current_time = ic_cdk::api::time();
+    memory::get_all_fusion_orders()
+        .into_iter()
+        .filter(|order| current_time > order.expires_at && order.status == OrderStatus::Pending)
+        .collect()
 }
 
 /// Register or update cross-chain identity - Used by: Users

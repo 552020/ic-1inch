@@ -7,6 +7,8 @@ pub struct FusionOrder {
     pub id: String,
     pub maker_eth_address: String,
     pub maker_icp_principal: Principal,
+    pub resolver_eth_address: Option<String>,
+    pub resolver_icp_principal: Option<Principal>,
     pub from_token: Token,
     pub to_token: Token,
     pub from_amount: u64,
@@ -14,6 +16,8 @@ pub struct FusionOrder {
     pub status: OrderStatus,
     pub created_at: u64,
     pub expires_at: u64,
+    pub accepted_at: Option<u64>,
+    pub completed_at: Option<u64>,
 }
 
 /// Supported tokens for cross-chain swaps
@@ -54,6 +58,12 @@ pub enum FusionError {
     InsufficientBalance,
     Unauthorized,
     SystemError,
+    OrderExpired,
+    OrderAlreadyAccepted,
+    OrderNotPending,
+    ResolverNotWhitelisted,
+    InvalidExpiration,
+    InvalidAmount,
 }
 
 impl FusionError {
@@ -63,6 +73,12 @@ impl FusionError {
             FusionError::InsufficientBalance => "Insufficient balance".to_string(),
             FusionError::Unauthorized => "Unauthorized".to_string(),
             FusionError::SystemError => "System error occurred".to_string(),
+            FusionError::OrderExpired => "Order has expired".to_string(),
+            FusionError::OrderAlreadyAccepted => "Order already accepted".to_string(),
+            FusionError::OrderNotPending => "Order is not in pending state".to_string(),
+            FusionError::ResolverNotWhitelisted => "Resolver is not whitelisted".to_string(),
+            FusionError::InvalidExpiration => "Invalid expiration time".to_string(),
+            FusionError::InvalidAmount => "Invalid amount".to_string(),
         }
     }
 }
