@@ -34,8 +34,8 @@ export default defineConfig({
     wasm(),
     topLevelAwait(),
     react(),
-    environment("all", { prefix: "CANISTER_" }),
-    environment("all", { prefix: "DFX_" }),
+    environment("all", { prefix: "CANISTER_", defineOn: "import.meta.env" }),
+    environment("all", { prefix: "DFX_", defineOn: "import.meta.env" }),
   ],
   resolve: {
     alias: {
