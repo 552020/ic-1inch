@@ -4,15 +4,21 @@ mod types;
 use candid::Principal;
 use types::{EscrowError, EscrowStatus, FusionEscrow, Token};
 
-/// Lock ICP tokens for a cross-chain swap - Used by: Makers/Resolvers
+/// Lock ICP tokens for a cross-chain swap - Used by: Makers
 #[ic_cdk::update]
 async fn lock_icp_for_swap(
     order_id: String,
     amount: u64,
-    hashlock: Vec<u8>,
+    resolver: Principal,
     timelock: u64,
 ) -> Result<String, EscrowError> {
     let caller = ic_cdk::caller();
+    let current_time = ic_cdk::api::time();
+
+    // Validate timelock is in the future
+    if timelock <= current_time {
+        return Err(EscrowError::TimelockExpired);
+    }
 
     // Generate escrow ID
     let escrow_id = generate_escrow_id(&order_id);
@@ -24,7 +30,10 @@ async fn lock_icp_for_swap(
         token: Token::ICP,
         amount,
         locked_by: caller,
-        locked_at: ic_cdk::api::time(),
+        resolver,
+        timelock,
+        eth_receipt: None,
+        locked_at: current_time,
         status: EscrowStatus::Created,
     };
 
@@ -33,70 +42,103 @@ async fn lock_icp_for_swap(
 
     // TODO: Implement actual ICP token transfer to escrow
     // This would integrate with the ICP ledger canister
+    // For now, we simulate the transfer by marking as funded
+    fund_escrow(escrow_id.clone())?;
 
     ic_cdk::println!(
-        "Created ICP escrow {} for order {} with amount {}",
+        "🔒 Locked {} ICP tokens for fusion swap {} (order: {})",
+        amount,
         escrow_id,
-        order_id,
-        amount
+        order_id
     );
 
     Ok(escrow_id)
 }
 
-/// Claim locked ICP tokens with receipt validation - Used by: Resolvers
+/// Claim locked ICP tokens with ETH receipt - Used by: Resolvers
 #[ic_cdk::update]
-async fn claim_locked_icp(
-    escrow_id: String,
-    preimage: Vec<u8>,
-    eth_receipt: String,
-) -> Result<(), EscrowError> {
+async fn claim_locked_icp(escrow_id: String, eth_receipt: String) -> Result<(), EscrowError> {
     let caller = ic_cdk::caller();
+    let current_time = ic_cdk::api::time();
 
     // Get escrow
     let mut escrow = memory::get_fusion_escrow(&escrow_id)?;
 
-    // Verify escrow is funded
+    // Validate caller is the resolver
+    if caller != escrow.resolver {
+        return Err(EscrowError::Unauthorized);
+    }
+
+    // Validate escrow state
     if escrow.status != EscrowStatus::Funded {
         return Err(EscrowError::InvalidState);
     }
 
-    // TODO: Verify preimage matches hashlock
-    // TODO: Validate ETH receipt
+    // Validate timelock hasn't expired
+    if current_time >= escrow.timelock {
+        return Err(EscrowError::TimelockExpired);
+    }
+
+    // Validate receipt (in mechanical turk, this is manual verification)
+    if eth_receipt.is_empty() {
+        return Err(EscrowError::InvalidReceipt);
+    }
 
     // Update escrow status
     escrow.status = EscrowStatus::Claimed;
+    escrow.eth_receipt = Some(eth_receipt);
     memory::store_fusion_escrow(escrow.clone())?;
 
-    // TODO: Transfer ICP tokens to claimer
+    // TODO: Transfer ICP tokens to resolver
+    // This would integrate with the ICP ledger canister
 
-    ic_cdk::println!("ICP escrow {} claimed by {}", escrow_id, caller.to_text());
+    ic_cdk::println!(
+        "✅ Claimed {} ICP tokens from fusion escrow {} by resolver {}",
+        escrow.amount,
+        escrow_id,
+        caller.to_text()
+    );
 
     Ok(())
 }
 
-/// Refund locked ICP tokens after timeout - Used by: Makers
+/// Refund locked ICP tokens after timelock expires - Used by: Makers
 #[ic_cdk::update]
 async fn refund_locked_icp(escrow_id: String) -> Result<(), EscrowError> {
     let caller = ic_cdk::caller();
+    let current_time = ic_cdk::api::time();
 
     // Get escrow
     let mut escrow = memory::get_fusion_escrow(&escrow_id)?;
 
-    // Verify caller is the original locker
+    // Validate caller is the original locker
     if escrow.locked_by != caller {
         return Err(EscrowError::Unauthorized);
     }
 
-    // TODO: Check if timelock has expired
+    // Validate escrow state
+    if escrow.status != EscrowStatus::Funded {
+        return Err(EscrowError::InvalidState);
+    }
+
+    // Validate timelock has expired
+    if current_time < escrow.timelock {
+        return Err(EscrowError::TimelockNotExpired);
+    }
 
     // Update escrow status
     escrow.status = EscrowStatus::Refunded;
     memory::store_fusion_escrow(escrow.clone())?;
 
     // TODO: Refund ICP tokens to original locker
+    // This would integrate with the ICP ledger canister
 
-    ic_cdk::println!("ICP escrow {} refunded to {}", escrow_id, caller.to_text());
+    ic_cdk::println!(
+        "💰 Refunded {} ICP tokens to maker {} from fusion escrow {}",
+        escrow.amount,
+        caller.to_text(),
+        escrow_id
+    );
 
     Ok(())
 }

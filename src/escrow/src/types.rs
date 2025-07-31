@@ -25,6 +25,9 @@ pub struct FusionEscrow {
     pub token: Token,
     pub amount: u64,
     pub locked_by: Principal,
+    pub resolver: Principal,
+    pub timelock: u64,
+    pub eth_receipt: Option<String>,
     pub locked_at: u64,
     pub status: EscrowStatus,
 }
@@ -51,6 +54,11 @@ pub enum EscrowError {
     InsufficientBalance,
     Unauthorized,
     InvalidState,
+    TimelockNotExpired,
+    TimelockExpired,
+    InvalidReceipt,
+    TransferFailed,
+    OrderNotFound,
     SystemError,
 }
 
@@ -61,6 +69,11 @@ impl EscrowError {
             EscrowError::InsufficientBalance => "Insufficient balance".to_string(),
             EscrowError::Unauthorized => "Unauthorized".to_string(),
             EscrowError::InvalidState => "Invalid escrow state".to_string(),
+            EscrowError::TimelockNotExpired => "Timelock has not expired".to_string(),
+            EscrowError::TimelockExpired => "Timelock has expired".to_string(),
+            EscrowError::InvalidReceipt => "Invalid cross-chain receipt".to_string(),
+            EscrowError::TransferFailed => "Token transfer failed".to_string(),
+            EscrowError::OrderNotFound => "Associated order not found".to_string(),
             EscrowError::SystemError => "System error occurred".to_string(),
         }
     }
