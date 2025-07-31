@@ -51,9 +51,9 @@ if ! dfx identity list | grep -q "maker"; then
     dfx identity new maker --storage-mode=plaintext
 fi
 
-if ! dfx identity list | grep -q "resolver"; then
-    print_status "Creating resolver identity..."
-    dfx identity new resolver --storage-mode=plaintext
+if ! dfx identity list | grep -q "taker"; then
+    print_status "Creating taker identity..."
+    dfx identity new taker --storage-mode=plaintext
 fi
 
 if ! dfx identity list | grep -q "relayer"; then
@@ -68,10 +68,10 @@ dfx identity use maker
 MAKER_PRINCIPAL=$(dfx identity get-principal)
 print_success "Maker principal: $MAKER_PRINCIPAL"
 
-# Switch to resolver identity and get principal
-dfx identity use resolver
-RESOLVER_PRINCIPAL=$(dfx identity get-principal)
-print_success "Resolver principal: $RESOLVER_PRINCIPAL"
+# Switch to taker identity and get principal
+dfx identity use taker
+TAKER_PRINCIPAL=$(dfx identity get-principal)
+print_success "Taker principal: $TAKER_PRINCIPAL"
 
 # Switch to relayer identity and get principal
 dfx identity use relayer
@@ -119,7 +119,7 @@ cat > "$ENV_FILE" << EOF
 
 # Cross-Chain Identity Principals
 export MAKER_PRINCIPAL="$MAKER_PRINCIPAL"
-export RESOLVER_PRINCIPAL="$RESOLVER_PRINCIPAL"
+export TAKER_PRINCIPAL="$TAKER_PRINCIPAL"
 export RELAYER_PRINCIPAL="$RELAYER_PRINCIPAL"
 export DEFAULT_PRINCIPAL="$DEFAULT_PRINCIPAL"
 
@@ -133,7 +133,7 @@ export TEST_TOKEN_B="$TEST_TOKEN_B"  # Mock ETH
 
 # Mock Ethereum Addresses (for testing cross-chain identity)
 export MAKER_ETH_ADDRESS="0x742d35Cc6634C0532925a3b8D4C0532925a3b8D4"
-export RESOLVER_ETH_ADDRESS="0x8ba1f109551bD432803012645Hac189451b934"
+export TAKER_ETH_ADDRESS="0x8ba1f109551bD432803012645Hac189451b934"
 
 # Cross-Chain Swap Parameters (for testing)
 export ICP_AMOUNT="1000000000"      # 10 ICP (8 decimals)

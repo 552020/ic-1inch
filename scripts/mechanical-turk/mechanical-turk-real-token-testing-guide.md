@@ -6,9 +6,10 @@ This guide provides step-by-step instructions for testing the Fusion+ Mechanical
 
 **Test Objective:** Verify that the escrow canister correctly handles real token transfers, balance checking, and error scenarios.
 
-**Architecture:** 
+**Architecture:**
+
 - **test_token_a**: Mock ICP tokens (ICRC-1 standard)
-- **test_token_b**: Mock ETH tokens (ICRC-1 standard)  
+- **test_token_b**: Mock ETH tokens (ICRC-1 standard)
 - **orderbook**: Order management
 - **escrow**: Real token custody with ICRC-1 transfers
 
@@ -45,7 +46,7 @@ dfx canister call test_token_b icrc1_name '()'
 dfx identity list
 ```
 
-**Expected Result:** All canisters respond, identities (maker, resolver, relayer) exist
+**Expected Result:** All canisters respond, identities (maker, taker, relayer) exist
 
 ---
 
@@ -70,11 +71,11 @@ dfx identity whoami
 dfx canister call test_token_a mint_for_caller "(1000000000:nat64)"  # 10 tokens
 dfx canister call test_token_b mint_for_caller "(1000000000:nat64)"  # 10 tokens
 
-# Switch to resolver identity
-dfx identity use resolver
+# Switch to taker identity
+dfx identity use taker
 dfx identity whoami
 
-# Fund resolver with test tokens
+# Fund taker with test tokens
 dfx canister call test_token_a mint_for_caller "(1000000000:nat64)"  # 10 tokens
 dfx canister call test_token_b mint_for_caller "(1000000000:nat64)"  # 10 tokens
 
@@ -91,9 +92,9 @@ dfx identity use maker
 dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\"; subaccount = null })"
 dfx canister call test_token_b icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\"; subaccount = null })"
 
-# Check resolver's token balances
-dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$RESOLVER_PRINCIPAL\"; subaccount = null })"
-dfx canister call test_token_b icrc1_balance_of "(record { owner = principal \"$RESOLVER_PRINCIPAL\"; subaccount = null })"
+# Check taker's token balances
+dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$TAKER_PRINCIPAL\"; subaccount = null })"
+dfx canister call test_token_b icrc1_balance_of "(record { owner = principal \"$TAKER_PRINCIPAL\"; subaccount = null })"
 ```
 
 **Expected Result:** Both identities show 10 tokens (1000000000) in each token canister
@@ -114,16 +115,16 @@ dfx canister call orderbook create_fusion_order "(
 
 **Expected Result:** `(variant { Ok = "fusion_1234567890_..." })` (Order ID returned)
 
-#### Step 1.4: Accept Order as Resolver
+#### Step 1.4: Accept Order as Taker
 
 ```bash
-# Switch to resolver identity
-dfx identity use resolver
+# Switch to taker identity
+dfx identity use taker
 
 # Accept the order
 dfx canister call orderbook accept_fusion_order "(
   \"$ORDER_ID\",
-  \"$RESOLVER_ETH_ADDRESS\"
+  \"$TAKER_ETH_ADDRESS\"
 )"
 ```
 
@@ -139,7 +140,7 @@ dfx identity use maker
 dfx canister call escrow lock_icp_for_swap "(
   \"$ORDER_ID\",
   ${ICP_AMOUNT}:nat64,
-  principal \"$RESOLVER_PRINCIPAL\",
+  principal \"$TAKER_PRINCIPAL\",
   $(($(date +%s) + 7200))000000000:nat64
 )"
 ```
@@ -162,18 +163,19 @@ dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$
 dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$MAKER_PRINCIPAL\"; subaccount = null })"
 ```
 
-**Expected Result:** 
+**Expected Result:**
+
 - Escrow status shows `Funded`
 - Escrow canister holds 10 tokens (1000000000)
 - Maker's balance reduced by 10 tokens
 
-#### Step 1.7: Claim Tokens as Resolver
+#### Step 1.7: Claim Tokens as Taker
 
 ```bash
-# Switch to resolver identity
-dfx identity use resolver
+# Switch to taker identity
+dfx identity use taker
 
-# Claim tokens from escrow (this will transfer tokens from escrow to resolver)
+# Claim tokens from escrow (this will transfer tokens from escrow to taker)
 dfx canister call escrow claim_locked_icp "(
   \"$ESCROW_ID\",
   \"0x1234567890abcdef...\"  # Mock ETH receipt
@@ -185,8 +187,8 @@ dfx canister call escrow claim_locked_icp "(
 #### Step 1.8: Verify Final Token Balances
 
 ```bash
-# Check resolver's increased balance
-dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$RESOLVER_PRINCIPAL\"; subaccount = null })"
+# Check taker's increased balance
+dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$TAKER_PRINCIPAL\"; subaccount = null })"
 
 # Check escrow's empty balance
 dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$(dfx canister id escrow)\"; subaccount = null })"
@@ -196,7 +198,8 @@ dfx canister call escrow get_fusion_escrow_status "(\"$ESCROW_ID\")"
 ```
 
 **Expected Result:**
-- Resolver's balance increased by 10 tokens
+
+- Taker's balance increased by 10 tokens
 - Escrow balance is 0 (tokens transferred out)
 - Escrow status shows `Claimed`
 
@@ -214,7 +217,7 @@ dfx identity use maker
 dfx canister call escrow lock_icp_for_swap "(
   \"$ORDER_ID\",
   999999999999:nat64,  # Much more than available
-  principal \"$RESOLVER_PRINCIPAL\",
+  principal \"$TAKER_PRINCIPAL\",
   $(($(date +%s) + 7200))000000000:nat64
 )"
 ```
@@ -225,7 +228,7 @@ dfx canister call escrow lock_icp_for_swap "(
 
 ```bash
 # Try to claim escrow with wrong identity
-dfx identity use maker  # Should be resolver
+dfx identity use maker  # Should be taker
 dfx canister call escrow claim_locked_icp "(
   \"$ESCROW_ID\",
   \"0x1234567890abcdef...\"
@@ -241,7 +244,7 @@ dfx canister call escrow claim_locked_icp "(
 dfx canister call escrow lock_icp_for_swap "(
   \"$ORDER_ID\",
   ${ICP_AMOUNT}:nat64,
-  principal \"$RESOLVER_PRINCIPAL\",
+  principal \"$TAKER_PRINCIPAL\",
   $(($(date +%s) - 3600))000000000:nat64  # Past time
 )"
 ```
@@ -266,10 +269,10 @@ dfx canister call orderbook create_fusion_order "(
 )"
 
 # Accept order
-dfx identity use resolver
+dfx identity use taker
 dfx canister call orderbook accept_fusion_order "(
   \"$NEW_ORDER_ID\",
-  \"$RESOLVER_ETH_ADDRESS\"
+  \"$TAKER_ETH_ADDRESS\"
 )"
 
 # Lock tokens
@@ -277,7 +280,7 @@ dfx identity use maker
 dfx canister call escrow lock_icp_for_swap "(
   \"$NEW_ORDER_ID\",
   ${ICP_AMOUNT}:nat64,
-  principal \"$RESOLVER_PRINCIPAL\",
+  principal \"$TAKER_PRINCIPAL\",
   $(($(date +%s) + 7200))000000000:nat64
 )"
 ```
@@ -344,7 +347,7 @@ dfx canister call escrow lock_icp_for_swap "(
 
 - [ ] Tokens actually transfer from maker to escrow
 - [ ] Escrow canister holds real tokens
-- [ ] Tokens transfer from escrow to resolver on claim
+- [ ] Tokens transfer from escrow to taker on claim
 - [ ] Tokens refund to original locker on timeout
 - [ ] Balance checking works correctly
 - [ ] Error handling for insufficient balance works
@@ -410,7 +413,7 @@ source .env.mechanical-turk
 1. ✅ **Token transfers** work with real ICRC-1 calls
 2. ✅ **Balance checking** prevents insufficient fund errors
 3. ✅ **Escrow custody** actually holds tokens
-4. ✅ **Claim operations** transfer tokens to resolvers
+4. ✅ **Claim operations** transfer tokens to takers
 5. ✅ **Refund operations** return tokens to original lockers
 6. ✅ **Error handling** provides clear feedback
 7. ✅ **Integration** works between all canisters
@@ -434,4 +437,4 @@ source .env.mechanical-turk
 3. **Security Testing**: Audit token transfer security
 4. **Production Readiness**: Prepare for real ICP ledger integration
 
-The mechanical turk approach now has real token integration - a major milestone! 🚀 
+The mechanical turk approach now has real token integration - a major milestone! 🚀
