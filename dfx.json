@@ -5,6 +5,16 @@
       "package": "backend",
       "type": "rust"
     },
+    "orderbook": {
+      "candid": "src/orderbook/orderbook.did",
+      "package": "orderbook",
+      "type": "rust"
+    },
+    "escrow": {
+      "candid": "src/escrow/escrow.did",
+      "package": "escrow",
+      "type": "rust"
+    },
     "frontend": {
       "dependencies": ["backend"],
       "source": ["src/frontend/dist"],
@@ -27,6 +37,16 @@
       },
       "type": "custom",
       "wasm": "https://github.com/kristoferlund/ic-siwe/releases/download/v0.1.1/ic_siwe_provider.wasm.gz"
+    },
+    "fusion_orderbook": {
+      "candid": "src/fusion_orderbook/fusion_orderbook.did",
+      "package": "fusion_orderbook",
+      "type": "rust"
+    },
+    "fusion_escrow": {
+      "candid": "src/fusion_escrow/fusion_escrow.did",
+      "package": "fusion_escrow",
+      "type": "rust"
     }
   },
   "defaults": {

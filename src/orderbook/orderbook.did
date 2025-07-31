@@ -1,0 +1,31 @@
+type Token = variant { ICP; ETH };
+type OrderStatus = variant { Pending; Accepted; Completed; Failed };
+type FusionOrder = record {
+  id : text;
+  maker_eth_address : text;
+  maker_icp_principal : principal;
+  from_token : Token;
+  to_token : Token;
+  from_amount : nat64;
+  to_amount : nat64;
+  status : OrderStatus;
+  created_at : nat64;
+  expires_at : nat64;
+};
+type FusionError = variant {
+  OrderNotFound;
+  InsufficientBalance;
+  Unauthorized;
+  SystemError;
+};
+type Result = variant { Ok : text; Err : FusionError };
+type Result_1 = variant { Ok; Err : FusionError };
+
+service : {
+  create_fusion_order : (text, Token, Token, nat64, nat64, nat64) -> (Result);
+  accept_fusion_order : (text, text) -> (Result_1);
+  get_active_fusion_orders : () -> (vec FusionOrder) query;
+  get_fusion_order_status : (text) -> (opt FusionOrder) query;
+  get_orders_by_maker : (principal) -> (vec FusionOrder) query;
+  update_order_status : (text, OrderStatus) -> (Result_1);
+}
