@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "./ui/alert";
 import { useTestMode, OrderData, Order } from "../hooks/useTestMode";
+import { useOrderCreation } from "../hooks/useOrderCreation";
 import { OrderForm } from "./OrderForm";
 import { OrderStatus } from "./OrderStatus";
 
@@ -34,6 +35,14 @@ export default function SwapInterface({
     simulateOrderRollback,
   } = useTestMode();
 
+  const {
+    createOrder,
+    getOrderStatus,
+    isCreating: isCreatingReal,
+    error: realError,
+    setError: setRealError,
+  } = useOrderCreation();
+
   const handleSwapDirection = () => {
     const tempToken = fromToken;
     const tempAmount = fromAmount;
@@ -52,6 +61,7 @@ export default function SwapInterface({
   const handleConfirmOrder = async () => {
     setIsCreating(true);
     setError(null);
+    setRealError(null);
 
     const orderData: OrderData = {
       fromToken,
@@ -61,61 +71,63 @@ export default function SwapInterface({
     };
 
     try {
-      // Step 1: Simulate order creation
-      const order = await simulateOrderCreation(orderData);
+      let order: Order;
 
-      // Step 2: Simulate token locking (atomic step for ICP → ETH)
-      if (fromToken === "ICP" && toToken === "ETH") {
-        await simulateTokenLocking(orderData);
-        // Update order status to show tokens are locked
-        order.status = "accepted" as const;
-        order.resolver = "0x742d35Cc6634C0532925a3b8D4C0532925a3b8D4";
+      if (testMode) {
+        // Use simulation in test mode
+        order = await simulateOrderCreation(orderData);
+
+        // Step 2: Simulate token locking (atomic step for ICP → ETH)
+        if (fromToken === "ICP" && toToken === "ETH") {
+          await simulateTokenLocking(orderData);
+          // Update order status to show tokens are locked
+          order.status = "accepted" as const;
+          order.resolver = "0x742d35Cc6634C0532925a3b8D4C0532925a3b8D4";
+        }
+
+        // Step 3: Simulate relayer verification and confirmation request
+        const verifiedOrder = await simulateRelayerVerification(order);
+        setCurrentOrder(verifiedOrder);
+      } else {
+        // Use real canister calls
+        order = await createOrder(orderData);
+        setCurrentOrder(order);
       }
 
-      setCurrentOrder(order);
       onOrderCreated?.(order);
 
       // Show order status instead of resetting form
       setShowConfirmation(false);
       setShowOrderStatus(true);
 
-      // Step 3: Simulate relayer verification and confirmation request
-      if (testMode) {
-        // Wait for relayer to verify both chains
-        const verifiedOrder = await simulateRelayerVerification(order);
-        setCurrentOrder(verifiedOrder);
-      } else {
-        // For ETH → ICP orders, simulate resolver acceptance later
-        if (fromToken === "ETH" && toToken === "ICP") {
-          setTimeout(() => {
-            if (order.status === "pending") {
-              const updatedOrder = {
-                ...order,
-                status: "accepted" as const,
-                resolver: "0x742d35Cc6634C0532925a3b8D4C0532925a3b8D4",
-              };
+      // For ETH → ICP orders in real mode, poll for status updates
+      if (!testMode && fromToken === "ETH" && toToken === "ICP") {
+        // Poll for order status updates
+        const pollInterval = setInterval(async () => {
+          if (order.id) {
+            const updatedOrder = await getOrderStatus(order.id);
+            if (updatedOrder && updatedOrder.status !== order.status) {
               setCurrentOrder(updatedOrder);
-
-              // After resolver accepts, wait for secret sharing
-              setTimeout(() => {
-                const awaitingSecretOrder = {
-                  ...updatedOrder,
-                  status: "awaiting_secret" as const,
-                };
-                setCurrentOrder(awaitingSecretOrder);
-              }, 3000);
+              if (updatedOrder.status === "accepted") {
+                clearInterval(pollInterval);
+              }
             }
-          }, 5000);
-        }
+          }
+        }, 5000); // Poll every 5 seconds
+
+        // Clear interval after 10 minutes
+        setTimeout(() => clearInterval(pollInterval), 10 * 60 * 1000);
       }
     } catch (error) {
       console.error("Failed to create order:", error);
-      setError(
-        error instanceof Error ? error.message : "Unknown error occurred"
-      );
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      setError(errorMessage);
+      setRealError(errorMessage);
 
-      // If token locking failed, simulate rollback
+      // If token locking failed in test mode, simulate rollback
       if (
+        testMode &&
         error instanceof Error &&
         error.message.includes("Token locking failed")
       ) {
@@ -131,15 +143,25 @@ export default function SwapInterface({
 
     setIsCreating(true);
     try {
-      // Simulate confirmation delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (testMode) {
+        // Simulate confirmation delay
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Move to secret sharing phase
-      const awaitingSecretOrder = {
-        ...currentOrder,
-        status: "awaiting_secret" as const,
-      };
-      setCurrentOrder(awaitingSecretOrder);
+        // Move to secret sharing phase
+        const awaitingSecretOrder = {
+          ...currentOrder,
+          status: "awaiting_secret" as const,
+        };
+        setCurrentOrder(awaitingSecretOrder);
+      } else {
+        // In real mode, this would trigger the actual swap completion
+        // For now, just simulate the transition
+        const awaitingSecretOrder = {
+          ...currentOrder,
+          status: "awaiting_secret" as const,
+        };
+        setCurrentOrder(awaitingSecretOrder);
+      }
     } catch (error) {
       console.error("Failed to confirm swap:", error);
     } finally {
@@ -191,7 +213,7 @@ export default function SwapInterface({
       <OrderStatus
         order={currentOrder}
         secret={secret}
-        isCreating={isCreating}
+        isCreating={isCreating || isCreatingReal}
         onSecretChange={setSecret}
         onShareSecret={handleShareSecret}
         onConfirmSwap={handleConfirmSwap}
@@ -214,10 +236,12 @@ export default function SwapInterface({
       )}
 
       {/* Error Display */}
-      {error && (
+      {(error || realError) && (
         <Alert className="border-red-200 bg-red-50">
           <AlertCircle className="h-4 w-4 text-red-600" />
-          <AlertDescription className="text-red-800">{error}</AlertDescription>
+          <AlertDescription className="text-red-800">
+            {error || realError}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -226,7 +250,7 @@ export default function SwapInterface({
         toToken={toToken}
         fromAmount={fromAmount}
         toAmount={toAmount}
-        isCreating={isCreating}
+        isCreating={isCreating || isCreatingReal}
         testMode={testMode}
         onFromTokenChange={setFromToken}
         onToTokenChange={setToToken}
@@ -273,10 +297,10 @@ export default function SwapInterface({
               </Button>
               <Button
                 onClick={handleConfirmOrder}
-                disabled={isCreating}
+                disabled={isCreating || isCreatingReal}
                 className="flex-1"
               >
-                {isCreating ? "Creating..." : "Confirm"}
+                {isCreating || isCreatingReal ? "Creating..." : "Confirm"}
               </Button>
             </div>
           </CardContent>
