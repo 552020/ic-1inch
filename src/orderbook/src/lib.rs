@@ -6,7 +6,7 @@ use types::{FusionError, FusionOrder, OrderStatus, Token};
 
 /// Create a new fusion order for cross-chain swaps - Used by: Makers
 #[ic_cdk::update]
-async fn create_fusion_order(
+async fn create_order(
     maker_eth_address: String,
     from_token: Token,
     to_token: Token,

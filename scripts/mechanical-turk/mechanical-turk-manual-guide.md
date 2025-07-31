@@ -111,7 +111,7 @@ dfx canister call test_token_eth icrc1_balance_of "(record { owner = principal \
 # - 1000000000:nat64                                  # from_amount (10 ICP in 8 decimals)
 # - 10000000000000000:nat64                          # to_amount (0.01 ETH in 18 decimals)
 # - expiration timestamp in nanoseconds
-dfx canister call orderbook create_fusion_order "(
+dfx canister call orderbook create_order "(
   \"$MAKER_ETH_ADDRESS\",
   variant { ICP },
   variant { ETH },
@@ -481,7 +481,7 @@ dfx canister call escrow lock_icp_for_swap "(
 
 ```bash
 # Create new order and escrow
-dfx canister call orderbook create_fusion_order "(
+dfx canister call orderbook create_order "(
   \"$MAKER_ETH_ADDRESS\",
   variant { ICP },
   variant { ETH },
@@ -540,7 +540,7 @@ dfx canister call test_token_a icrc1_balance_of "(record { owner = principal \"$
 dfx identity use maker
 
 # Create ETH → ICP fusion order
-dfx canister call orderbook create_fusion_order "(
+dfx canister call orderbook create_order "(
   \"$MAKER_ETH_ADDRESS\",
   variant { ETH },
   variant { ICP },
@@ -581,7 +581,7 @@ Follow the same pattern as Scenario 1, but with:
 
 ```bash
 # Try to create order with same from/to token
-dfx canister call orderbook create_fusion_order "(
+dfx canister call orderbook create_order "(
   \"$MAKER_ETH_ADDRESS\",
   variant { ICP },
   variant { ICP },
@@ -667,7 +667,7 @@ echo "6. Relayer admin panel"
 ```bash
 # Create 5 orders quickly
 for i in {1..5}; do
-  dfx canister call orderbook create_fusion_order "(
+  dfx canister call orderbook create_order "(
     \"$MAKER_ETH_ADDRESS\",
     variant { ICP },
     variant { ETH },

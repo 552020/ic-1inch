@@ -64,7 +64,7 @@ dfx identity use maker
 print_status "Switched to maker identity: $(dfx identity whoami)"
 
 # Create fusion order
-ORDER_RESULT=$(dfx canister call orderbook create_fusion_order "(
+ORDER_RESULT=$(dfx canister call orderbook create_order "(
   \"$MAKER_ETH_ADDRESS\",
   variant { ICP },
   variant { ETH },
@@ -186,7 +186,7 @@ echo "=================================================="
 print_success "🎉 Basic Function Tests Completed Successfully!"
 echo ""
 echo "✅ Functions Tested:"
-echo "• Orderbook canister: create_fusion_order, accept_fusion_order, get_fusion_order_status"
+echo "• Orderbook canister: create_order, accept_fusion_order, get_fusion_order_status"
 echo "• Escrow canister: lock_icp_for_swap, get_fusion_escrow_status"
 echo "• Identity management: Multiple user roles work"
 echo "• Order status updates: Relayer can update order states"
