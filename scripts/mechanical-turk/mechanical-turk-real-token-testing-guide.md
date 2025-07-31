@@ -68,16 +68,16 @@ dfx identity use maker
 dfx identity whoami
 
 # Fund maker with test tokens (simulating ICP balance)
-dfx canister call test_token_a mint_for_caller "(1000000000:nat64)"  # 10 tokens
-dfx canister call test_token_b mint_for_caller "(1000000000:nat64)"  # 10 tokens
+dfx canister call test_token_a mint_tokens "(principal \"$MAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
+dfx canister call test_token_b mint_tokens "(principal \"$MAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
 
 # Switch to taker identity
 dfx identity use taker
 dfx identity whoami
 
 # Fund taker with test tokens
-dfx canister call test_token_a mint_for_caller "(1000000000:nat64)"  # 10 tokens
-dfx canister call test_token_b mint_for_caller "(1000000000:nat64)"  # 10 tokens
+dfx canister call test_token_a mint_tokens "(principal \"$TAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
+dfx canister call test_token_b mint_tokens "(principal \"$TAKER_PRINCIPAL\", 1000000000:nat)"  # 10 tokens
 
 # Switch back to maker for testing
 dfx identity use maker
@@ -379,7 +379,7 @@ dfx canister call escrow lock_icp_for_swap "(
 
 #### Issue: "Insufficient balance"
 
-**Solution:** Fund identities with `mint_for_caller()` calls
+**Solution:** Fund identities with `mint_tokens()` calls
 
 #### Issue: "Transfer failed"
 
