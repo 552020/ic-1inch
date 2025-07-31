@@ -127,14 +127,14 @@ fn get_orders_by_maker(maker_principal: Principal) -> Vec<FusionOrder> {
 fn update_order_status(order_id: String, status: OrderStatus) -> Result<(), FusionError> {
     let mut order = memory::get_fusion_order(&order_id)?;
     let current_time = ic_cdk::api::time();
-    
+
     order.status = status.clone();
-    
+
     // Update completion timestamp if order is completed
     if status == OrderStatus::Completed {
         order.completed_at = Some(current_time);
     }
-    
+
     memory::store_fusion_order(order)?;
     Ok(())
 }
@@ -165,10 +165,7 @@ fn cancel_fusion_order(order_id: String) -> Result<(), FusionError> {
 /// Get orders by status - Used by: Frontend/Users
 #[ic_cdk::query]
 fn get_orders_by_status(status: OrderStatus) -> Vec<FusionOrder> {
-    memory::get_all_fusion_orders()
-        .into_iter()
-        .filter(|order| order.status == status)
-        .collect()
+    memory::get_all_fusion_orders().into_iter().filter(|order| order.status == status).collect()
 }
 
 /// Get expired orders - Used by: System/Cleanup

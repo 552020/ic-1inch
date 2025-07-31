@@ -4,20 +4,30 @@ type CrossChainIdentity = record {
   icp_principal : principal;
 };
 type FusionError = variant {
+  InvalidAmount;
+  OrderNotPending;
   SystemError;
   OrderNotFound;
   InsufficientBalance;
+  OrderExpired;
   Unauthorized;
+  InvalidExpiration;
+  OrderAlreadyAccepted;
+  ResolverNotWhitelisted;
 };
 type FusionOrder = record {
   id : text;
   to_token : Token;
   status : OrderStatus;
   from_amount : nat64;
+  resolver_eth_address : opt text;
   from_token : Token;
   maker_eth_address : text;
+  accepted_at : opt nat64;
+  resolver_icp_principal : opt principal;
   created_at : nat64;
   to_amount : nat64;
+  completed_at : opt nat64;
   expires_at : nat64;
   maker_icp_principal : principal;
 };
@@ -29,13 +39,18 @@ type Token = variant { ETH; ICP };
 type UserRole = variant { Maker; Resolver };
 service : {
   accept_fusion_order : (text, text) -> (Result);
+  cancel_fusion_order : (text) -> (Result);
   create_fusion_order : (text, Token, Token, nat64, nat64, nat64) -> (Result_1);
   derive_principal_from_eth_address : (text) -> (Result_2);
   get_active_fusion_orders : () -> (vec FusionOrder) query;
   get_cross_chain_identity : (text) -> (opt CrossChainIdentity) query;
-  get_cross_chain_identity_by_principal : (principal) -> (opt CrossChainIdentity) query;
+  get_cross_chain_identity_by_principal : (principal) -> (
+      opt CrossChainIdentity,
+    ) query;
+  get_expired_orders : () -> (vec FusionOrder) query;
   get_fusion_order_status : (text) -> (opt FusionOrder) query;
   get_orders_by_maker : (principal) -> (vec FusionOrder) query;
+  get_orders_by_status : (OrderStatus) -> (vec FusionOrder) query;
   register_cross_chain_identity : (text, UserRole) -> (Result);
   update_order_status : (text, OrderStatus) -> (Result);
 }
