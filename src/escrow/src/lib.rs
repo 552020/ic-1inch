@@ -62,6 +62,60 @@ async fn lock_icp_for_swap(
     Ok(escrow_id)
 }
 
+/// Lock ICP tokens for an order (called by orderbook) - Used by: Orderbook
+#[ic_cdk::update]
+async fn lock_icp_for_order(
+    order_id: String,
+    amount: u64,
+    timelock: u64,
+) -> Result<String, EscrowError> {
+    let caller = ic_cdk::caller();
+    let current_time = ic_cdk::api::time();
+
+    // Validate timelock is in the future
+    if timelock <= current_time {
+        return Err(EscrowError::TimelockExpired);
+    }
+
+    // Generate escrow ID
+    let escrow_id = generate_escrow_id(&order_id);
+
+    // Create escrow record (resolver will be set later when order is accepted)
+    let escrow = FusionEscrow {
+        id: escrow_id.clone(),
+        order_id: order_id.clone(),
+        token: Token::ICP,
+        amount,
+        locked_by: caller,
+        resolver: Principal::anonymous(), // Will be updated when resolver accepts
+        timelock,
+        eth_receipt: None,
+        locked_at: current_time,
+        status: EscrowStatus::Created,
+    };
+
+    // Store escrow
+    memory::store_fusion_escrow(escrow)?;
+
+    // Get test token canister for ICP
+    let token_canister = get_test_token_canister(&Token::ICP)?;
+
+    // Transfer tokens from maker to escrow canister
+    transfer_tokens_to_escrow(token_canister, caller, amount).await?;
+
+    // Mark escrow as funded after successful transfer
+    fund_escrow(escrow_id.clone())?;
+
+    ic_cdk::println!(
+        "🔒 Automatically locked {} ICP tokens for order {} (escrow: {})",
+        amount,
+        order_id,
+        escrow_id
+    );
+
+    Ok(escrow_id)
+}
+
 /// Claim locked ICP tokens with ETH receipt - Used by: Resolvers
 #[ic_cdk::update]
 async fn claim_locked_icp(escrow_id: String, eth_receipt: String) -> Result<(), EscrowError> {

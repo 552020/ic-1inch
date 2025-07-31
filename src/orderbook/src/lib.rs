@@ -1,7 +1,8 @@
 mod memory;
 mod types;
 
-use candid::Principal;
+use candid::{Nat, Principal};
+use ic_cdk::call;
 use types::{FusionError, FusionOrder, OrderStatus, Token};
 
 /// Create a new fusion order for cross-chain swaps - Used by: Makers
@@ -30,6 +31,9 @@ async fn create_order(
     // Generate unique order ID
     let order_id = generate_order_id();
 
+    // Check if this is an ICP → ETH order (for automatic locking)
+    let is_icp_to_eth = from_token == Token::ICP && to_token == Token::ETH;
+
     // Create the fusion order
     let order = FusionOrder {
         id: order_id.clone(),
@@ -49,7 +53,39 @@ async fn create_order(
     };
 
     // Store the order
-    memory::store_fusion_order(order)?;
+    memory::store_fusion_order(order.clone())?;
+
+    // For ICP → ETH orders, automatically lock ICP tokens in escrow
+    if is_icp_to_eth {
+        // Call escrow canister to lock ICP tokens
+        let escrow_result = lock_icp_tokens_for_order(
+            order_id.clone(),
+            from_amount,
+            expiration,
+        ).await;
+
+        match escrow_result {
+            Ok(escrow_id) => {
+                ic_cdk::println!(
+                    "🔒 Automatically locked {} ICP tokens for ICP→ETH order {} (escrow: {})",
+                    from_amount, order_id, escrow_id
+                );
+            }
+            Err(escrow_error) => {
+                // If escrow locking fails, mark order as failed
+                let mut failed_order = order;
+                failed_order.status = OrderStatus::Failed;
+                memory::store_fusion_order(failed_order)?;
+                
+                ic_cdk::println!(
+                    "❌ Failed to lock ICP tokens for order {}: {:?}",
+                    order_id, escrow_error
+                );
+                
+                return Err(FusionError::SystemError);
+            }
+        }
+    }
 
     ic_cdk::println!("Created fusion order {} for maker {}", order_id, maker_eth_address);
 
@@ -183,6 +219,33 @@ fn generate_order_id() -> String {
     let timestamp = ic_cdk::api::time();
     let caller = ic_cdk::caller();
     format!("fusion_{}_{}", timestamp, caller.to_text())
+}
+
+/// Lock ICP tokens for an order in the escrow canister - Used by: Orderbook
+async fn lock_icp_tokens_for_order(
+    order_id: String,
+    amount: u64,
+    timelock: u64,
+) -> Result<String, FusionError> {
+    // Get escrow canister ID (this would be configured during deployment)
+    let escrow_canister_id = Principal::from_text("uzt4z-lp777-77774-qaabq-cai")
+        .map_err(|_| FusionError::SystemError)?;
+
+    // Call escrow canister to lock ICP tokens
+    let result: Result<(Result<String, String>,), _> = ic_cdk::call(
+        escrow_canister_id,
+        "lock_icp_for_order",
+        (order_id, amount, timelock),
+    ).await;
+
+    match result {
+        Ok((Ok(escrow_id),)) => Ok(escrow_id),
+        Ok((Err(error_msg),)) => {
+            ic_cdk::println!("Escrow error: {}", error_msg);
+            Err(FusionError::SystemError)
+        }
+        Err(_) => Err(FusionError::SystemError),
+    }
 }
 
 // ============================================================================

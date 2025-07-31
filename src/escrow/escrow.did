@@ -32,5 +32,6 @@ service : {
   get_fusion_escrow_status : (text) -> (opt FusionEscrow) query;
   list_fusion_escrows : () -> (vec FusionEscrow) query;
   lock_icp_for_swap : (text, nat64, principal, nat64) -> (Result_1);
+  lock_icp_for_order : (text, nat64, nat64) -> (Result_1);
   refund_locked_icp : (text) -> (Result);
 }
