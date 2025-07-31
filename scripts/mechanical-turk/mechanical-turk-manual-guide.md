@@ -39,11 +39,15 @@ dfx canister call orderbook get_active_fusion_orders '()'
 # Test escrow canister
 dfx canister call escrow list_fusion_escrows '()'
 
+# Test token canisters
+dfx canister call test_token_a icrc1_name '()'
+dfx canister call test_token_b icrc1_name '()'
+
 # Check identities are created
 dfx identity list
 ```
 
-**Expected Result:** Both canisters respond, identities (maker, resolver, relayer) exist
+**Expected Result:** All canisters respond, identities (maker, resolver, relayer) exist
 
 ---
 
@@ -57,13 +61,34 @@ dfx identity list
 
 ### Step-by-Step Test
 
-#### Step 1.1: Maker Creates Cross-Chain Order
+#### Step 1.1: Fund Test Identities with Tokens
 
 ```bash
 # Switch to maker identity
 dfx identity use maker
 dfx identity whoami
 
+# Fund maker with test tokens (simulating ICP balance)
+dfx canister call test_token_a mint_for_caller "(1000000000:nat64)"  # 10 tokens
+dfx canister call test_token_b mint_for_caller "(1000000000:nat64)"  # 10 tokens
+
+# Switch to resolver identity
+dfx identity use resolver
+dfx identity whoami
+
+# Fund resolver with test tokens
+dfx canister call test_token_a mint_for_caller "(1000000000:nat64)"  # 10 tokens
+dfx canister call test_token_b mint_for_caller "(1000000000:nat64)"  # 10 tokens
+
+# Switch back to maker for order creation
+dfx identity use maker
+```
+
+**Expected Result:** Both identities funded with test tokens
+
+#### Step 1.2: Maker Creates Cross-Chain Order
+
+```bash
 # Create ICP → ETH fusion order
 # Parameters explained:
 # - "0x742d35Cc6634C0532925a3b8D4C0532925a3b8D4"  # maker's ETH address
@@ -172,16 +197,16 @@ dfx identity whoami
 #### Step 3.2: Create ICP Escrow
 
 ```bash
-# Create escrow to lock ICP tokens
+# Create escrow to lock ICP tokens (Mechanical Turk approach)
 # Parameters explained:
 # - "fusion_1234567890_..."                          # order_id
 # - 1000000000:nat64                                 # amount (10 ICP in 8 decimals)
-# - hashlock (32 bytes for atomic swap)
+# - principal "..."                                   # resolver principal (not hashlock)
 # - timelock (2 hours from now in nanoseconds)
 dfx canister call escrow lock_icp_for_swap "(
   \"$ORDER_ID\",
   ${ICP_AMOUNT}:nat64,
-  blob \"\\01\\02\\03\\04\\05\\06\\07\\08\\09\\0a\\0b\\0c\\0d\\0e\\0f\\10\\11\\12\\13\\14\\15\\16\\17\\18\\19\\1a\\1b\\1c\\1d\\1e\\1f\\20\",
+  principal \"$RESOLVER_PRINCIPAL\",
   $(($(date +%s) + 7200))000000000:nat64
 )"
 ```
@@ -201,7 +226,7 @@ dfx canister call escrow get_fusion_escrow_status "(\"$ESCROW_ID\")"
 dfx canister call escrow list_fusion_escrows '()'
 ```
 
-**Expected Result:** Escrow shows status `Created`, correct amount, and maker as locker
+**Expected Result:** Escrow shows status `Funded` (simulated), correct amount, and maker as locker
 
 ---
 
@@ -233,7 +258,7 @@ echo "✅ Transaction hash: 0xdef456..."
 echo "✅ Block confirmation: 12/12"
 ```
 
-**Expected Result:** ICP escrow is funded, ETH escrow is simulated as funded
+**Expected Result:** ICP escrow is funded (simulated), ETH escrow is simulated as funded
 
 #### Step 4.3: Approve Swap for Completion
 
@@ -326,14 +351,14 @@ dfx canister call escrow get_fusion_escrow_status "(\"$ESCROW_ID\")"
 #### Step 6.3: Verify Atomic Completion
 
 ```bash
-echo "=== ATOMIC SWAP VERIFICATION ==="
-echo "✅ Maker received: 0.01 ETH at $MAKER_ETH_ADDRESS"
-echo "✅ Resolver received: 10 ICP tokens"
-echo "✅ Order completed atomically"
-echo "✅ No funds lost or stuck"
+echo "=== ATOMIC SWAP VERIFICATION (SIMULATED) ==="
+echo "✅ Maker received: 0.01 ETH at $MAKER_ETH_ADDRESS (simulated)"
+echo "✅ Resolver received: 10 ICP tokens (simulated)"
+echo "✅ Order completed atomically (simulated)"
+echo "✅ No funds lost or stuck (simulated)"
 ```
 
-**Expected Result:** Both parties received their tokens atomically
+**Expected Result:** Both parties received their tokens atomically (simulated)
 
 ---
 
@@ -423,7 +448,6 @@ dfx canister call orderbook accept_fusion_order "(
 # Try to claim escrow without proper authorization
 dfx canister call escrow claim_locked_icp "(
   \"nonexistent_escrow\",
-  blob \"\\01\\02\\03\",
   \"invalid_receipt\"
 )"
 ```
