@@ -9,28 +9,35 @@ echo "🔧 Generating DID files and declarations..."
 
 # Generate DID files for each canister
 echo "📝 Generating DID files..."
-generate-did backend
+generate-did orderbook
+generate-did escrow
+generate-did limit-order
+generate-did test_token_icp
+generate-did test_token_eth
 
 # Build test tokens to generate their .did files
 echo "📝 Building test tokens to generate .did files..."
-cargo build --target wasm32-unknown-unknown --release --package test_token_a
-cargo build --target wasm32-unknown-unknown --release --package test_token_b
+cargo build --target wasm32-unknown-unknown --release --package test_token_icp
+cargo build --target wasm32-unknown-unknown --release --package test_token_eth
 
 # Generate TypeScript declarations for Rust canisters only
 echo "📝 Generating TypeScript declarations..."
-dfx generate backend
+dfx generate orderbook
+dfx generate escrow
+dfx generate limit-order
+dfx generate ic_siwe_provider
 
 # Generate declarations for test tokens if .did files exist
-if [ -f "src/test_token_a/test_token_a.did" ]; then
-    dfx generate test_token_a
+if [ -f "src/test_token_icp/test_token_icp.did" ]; then
+    dfx generate test_token_icp
 else
-    echo "⚠️  Skipping test_token_a declarations - .did file not found"
+    echo "⚠️  Skipping test_token_icp declarations - .did file not found"
 fi
 
-if [ -f "src/test_token_b/test_token_b.did" ]; then
-    dfx generate test_token_b
+if [ -f "src/test_token_eth/test_token_eth.did" ]; then
+    dfx generate test_token_eth
 else
-    echo "⚠️  Skipping test_token_b declarations - .did file not found"
+    echo "⚠️  Skipping test_token_eth declarations - .did file not found"
 fi
 
 echo "✅ Declarations generated successfully!"
@@ -38,12 +45,18 @@ echo "📁 Generated files:"
 if [ -d "src/declarations" ]; then
     echo "   - src/declarations/ (TypeScript declarations)"
 fi
-if [ -f "src/backend/backend.did" ]; then
-    echo "   - src/backend/backend.did (Backend interface)"
+if [ -f "src/orderbook/orderbook.did" ]; then
+    echo "   - src/orderbook/orderbook.did (Orderbook interface)"
 fi
-if [ -f "src/test_token_a/test_token_a.did" ]; then
-    echo "   - src/test_token_a/test_token_a.did (Test token A interface)"
+if [ -f "src/escrow/escrow.did" ]; then
+    echo "   - src/escrow/escrow.did (Escrow interface)"
 fi
-if [ -f "src/test_token_b/test_token_b.did" ]; then
-    echo "   - src/test_token_b/test_token_b.did (Test token B interface)"
+if [ -f "src/limit-order/limit-order.did" ]; then
+    echo "   - src/limit-order/limit-order.did (Limit order interface)"
+fi
+if [ -f "src/test_token_icp/test_token_icp.did" ]; then
+    echo "   - src/test_token_icp/test_token_icp.did (Test token ICP interface)"
+fi
+if [ -f "src/test_token_eth/test_token_eth.did" ]; then
+    echo "   - src/test_token_eth/test_token_eth.did (Test token ETH interface)"
 fi 
