@@ -178,8 +178,12 @@ pub enum OrderError {
     // Authorization Errors
     Unauthorized,
     InsufficientBalance,
+    InsufficientAmount,
     AnonymousCaller,
     NotOrderMaker,
+    
+    // 1inch LOP Compliance Errors
+    MismatchArraysLengths,
 
     // Token Integration Errors
     TokenCallFailed(String),
@@ -258,8 +262,10 @@ impl std::fmt::Display for OrderError {
             OrderError::OrderInactive => write!(f, "Order inactive"),
             OrderError::Unauthorized => write!(f, "Unauthorized"),
             OrderError::InsufficientBalance => write!(f, "Insufficient balance"),
+            OrderError::InsufficientAmount => write!(f, "Insufficient amount"),
             OrderError::AnonymousCaller => write!(f, "Anonymous caller not allowed"),
             OrderError::NotOrderMaker => write!(f, "Not the order maker"),
+            OrderError::MismatchArraysLengths => write!(f, "Mismatched array lengths"),
             OrderError::TokenCallFailed(msg) => write!(f, "Token call failed: {}", msg),
             OrderError::TransferFailed(msg) => write!(f, "Transfer failed: {}", msg),
             OrderError::BalanceCheckFailed(msg) => write!(f, "Balance check failed: {}", msg),
