@@ -1,10 +1,8 @@
-# 1inch Fusion+ System Study Plan
+# 1inch chain Fusion+ System
 
-> **Purpose**: Understand the existing 1inch Fusion+ system before integrating with our ICP Mechanical Turk
-> **Goal**: Learn the interfaces, data structures, and workflows to build compatible ICP components
-> **Timeline**: 1-2 weeks of focused study before implementation
+> **Purpose**: Understand the existing 1inch Fusion+ system
 
-## 🎯 **Core Study Areas**
+## 🎯 **Core**
 
 ### **1. Contract Architecture & Interfaces**
 
