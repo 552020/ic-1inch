@@ -9,6 +9,9 @@ type EscrowError = variant {
   TransferFailed;
   TimelockNotExpired;
   InvalidState;
+  ThresholdECDSAUnavailable;
+  EVMAddressDerivationFailed;
+  EVMEscrowCreationFailed;
 };
 type EscrowStatus = variant { Refunded; Claimed; Funded; Created };
 type FusionEscrow = record {
@@ -35,4 +38,11 @@ service : {
   lock_icp_for_order : (text, nat64, nat64) -> (Result_1);
   lock_icp_for_swap : (text, nat64, principal, nat64) -> (Result_1);
   refund_locked_icp : (text) -> (Result);
+  
+  // Chain Fusion API - Task 5
+  check_threshold_ecdsa_health : () -> (variant { Ok : variant { Healthy; Degraded; Unavailable }; Err : EscrowError });
+  derive_deterministic_evm_address : (text) -> (variant { Ok : text; Err : EscrowError });
+  get_chain_fusion_config : () -> (variant { Ok : text; Err : EscrowError }) query;
+  create_evm_escrow_via_chain_fusion : (text, text, text, text, text, nat64, nat64, nat64, nat64, nat64, text, text, nat64, nat64) -> (variant { Ok : text; Err : EscrowError });
+  verify_evm_escrow_state : (text) -> (variant { Ok : bool; Err : EscrowError });
 }

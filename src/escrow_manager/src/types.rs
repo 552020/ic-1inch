@@ -2,6 +2,74 @@
 use candid::{CandidType, Deserialize};
 use serde::Serialize;
 
+/// Transaction Receipt structure for EVM transactions
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct TransactionReceipt {
+    pub transaction_hash: String,
+    pub status: Option<candid::Nat>,
+    pub contract_address: Option<String>,
+    pub logs: Vec<LogEntry>,
+    pub gas_used: Option<candid::Nat>,
+}
+
+/// Log Entry structure for parsing transaction logs
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct LogEntry {
+    pub address: String,
+    pub topics: Vec<String>,
+    pub data: String,
+}
+
+/// RPC Services for network selection
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub enum RpcService {
+    BaseSepolia,
+    BaseMainnet,
+}
+
+/// EVM Escrow Parameters for contract creation
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub struct EVMEscrowParams {
+    pub order_hash: String,
+    pub evm_address: String,
+    pub amount: u64,
+    pub timelock: u64,
+    pub safety_deposit: u64,
+    pub hash_lock: String,
+    pub src_token: String,
+    pub dst_token: String,
+    pub src_amount: u64,
+    pub dst_amount: u64,
+}
+
+/// General error type for the escrow manager
+#[derive(Clone, Debug, CandidType, Deserialize)]
+pub enum Error {
+    // Chain Fusion / EVM RPC Errors
+    RpcError(String),
+    Inconsistent(String),
+    DecodeError(String),
+    Rejected(String),
+    NotFound(String),
+    InvalidData(String),
+    
+    // Threshold ECDSA Errors
+    ThresholdECDSAUnavailable,
+    ThresholdECDSASigningFailed,
+    ThresholdECDSAKeyNotFound,
+    
+    // Escrow-specific Errors
+    InvalidEscrowParameters,
+    EscrowCreationFailed,
+    EscrowVerificationFailed,
+    
+    // Network/System Errors
+    NetworkError,
+    SystemError,
+    EncodeError,
+    General(String),
+}
+
 /// Token types supported by the escrow manager
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize, PartialEq)]
 pub enum Token {

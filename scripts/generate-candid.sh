@@ -17,12 +17,12 @@ if [ ! -f "dfx.json" ]; then
     exit 1
 fi
 
-# Build the backend canister to generate Candid files
-echo "🔨 Building backend canister..."
-dfx build backend
+# Build the escrow_manager canister to generate Candid files
+echo "🔨 Building escrow_manager canister..."
+dfx build escrow_manager
 
 # Check if Candid file was generated
-CANDID_FILE=".dfx/local/canisters/backend/backend.did"
+CANDID_FILE=".dfx/local/canisters/escrow_manager/escrow_manager.did"
 if [ ! -f "$CANDID_FILE" ]; then
     echo "❌ Candid file not found at $CANDID_FILE"
     exit 1
@@ -36,9 +36,9 @@ FRONTEND_CANDID_DIR="src/frontend/src/declarations"
 mkdir -p "$FRONTEND_CANDID_DIR"
 
 # Copy the generated declarations
-if [ -d ".dfx/local/canisters/backend" ]; then
+if [ -d ".dfx/local/canisters/escrow_manager" ]; then
     echo "📋 Copying declarations to frontend..."
-    cp -r .dfx/local/canisters/backend/* "$FRONTEND_CANDID_DIR/"
+    cp -r .dfx/local/canisters/escrow_manager/* "$FRONTEND_CANDID_DIR/"
     echo "✅ Declarations copied to $FRONTEND_CANDID_DIR"
 fi
 

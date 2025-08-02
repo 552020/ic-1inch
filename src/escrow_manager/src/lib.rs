@@ -1,10 +1,10 @@
-// mod chain_fusion; // TODO: Enable in Task 5 (Chain Fusion integration)
+mod chain_fusion; // Chain Fusion integration enabled (Task 5)
 mod memory;
 mod timelock;
 mod types;
 
 use candid::Principal;
-// use chain_fusion::{ChainFusionConfig, ChainFusionManager, EVMEscrowParams}; // TODO: Enable in Task 5
+use chain_fusion::ChainFusionManager; // Chain Fusion integration enabled (Task 5)
 use types::{
     ConservativeTimelocks,
     CoordinationState,
@@ -99,8 +99,6 @@ async fn create_icp_escrow(
 
     Ok(order_hash)
 }
-
-
 
 /// Get HTLC escrow status - Used by: Frontend/Users
 #[ic_cdk::query]
@@ -226,6 +224,86 @@ fn get_test_token_canister(token: &Token) -> Result<Principal, EscrowError> {
                 .map_err(|_| EscrowError::SystemError)
         }
     }
+}
+
+// ============================================================================
+// CHAIN FUSION API - Task 5: Scaffold Chain Fusion integration for EVM escrow creation
+// ============================================================================
+
+/// Check threshold ECDSA health for EVM operations
+#[ic_cdk::update]
+async fn check_threshold_ecdsa_health() -> Result<types::ThresholdECDSAHealth, EscrowError> {
+    let chain_fusion_manager = ChainFusionManager::default();
+    chain_fusion_manager
+        .check_threshold_ecdsa_health()
+        .await
+        .map_err(|_| EscrowError::ThresholdECDSAUnavailable)
+}
+
+/// Derive deterministic EVM address using threshold ECDSA
+#[ic_cdk::update]
+fn derive_deterministic_evm_address(order_hash: String) -> Result<String, EscrowError> {
+    let chain_fusion_manager = ChainFusionManager::default();
+    chain_fusion_manager
+        .derive_deterministic_evm_address(&order_hash)
+        .map_err(|_| EscrowError::EVMAddressDerivationFailed)
+}
+
+/// Get Chain Fusion configuration
+#[ic_cdk::query]
+fn get_chain_fusion_config() -> Result<String, EscrowError> {
+    // For MVP, return basic config info
+    Ok("Chain Fusion enabled - Base Sepolia network".to_string())
+}
+
+/// Create EVM escrow via Chain Fusion (scaffold implementation)
+#[ic_cdk::update]
+async fn create_evm_escrow_via_chain_fusion(
+    order_hash: String,
+    hashlock: String,
+    _maker: String,
+    _taker: String,
+    _token: String,
+    amount: u64,
+    safety_deposit: u64,
+    timelock: u64,
+    _src_chain_id: u64,
+    _dst_chain_id: u64,
+    src_token: String,
+    dst_token: String,
+    src_amount: u64,
+    dst_amount: u64,
+) -> Result<String, EscrowError> {
+    let chain_fusion_manager = ChainFusionManager::default();
+
+    // Create EVMEscrowParams from the input parameters (now using u64 directly)
+    let params = types::EVMEscrowParams {
+        order_hash: order_hash.clone(),
+        evm_address: String::new(), // Will be derived
+        amount,
+        timelock,
+        safety_deposit,
+        hash_lock: hashlock,
+        src_token,
+        dst_token,
+        src_amount,
+        dst_amount,
+    };
+
+    chain_fusion_manager
+        .create_evm_escrow_via_chain_fusion(params)
+        .await
+        .map_err(|_| EscrowError::EVMEscrowCreationFailed)
+}
+
+/// Verify EVM escrow state via Chain Fusion
+#[ic_cdk::update]
+async fn verify_evm_escrow_state(escrow_address: String) -> Result<bool, EscrowError> {
+    let chain_fusion_manager = ChainFusionManager::default();
+    chain_fusion_manager
+        .verify_evm_escrow_state(escrow_address)
+        .await
+        .map_err(|_| EscrowError::SystemError)
 }
 
 ic_cdk::export_candid!();
