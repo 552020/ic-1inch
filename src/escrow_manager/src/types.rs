@@ -52,22 +52,26 @@ pub enum Error {
     Rejected(String),
     NotFound(String),
     InvalidData(String),
-    
+
     // Threshold ECDSA Errors
     ThresholdECDSAUnavailable,
     ThresholdECDSASigningFailed,
     ThresholdECDSAKeyNotFound,
-    
+
     // Escrow-specific Errors
     InvalidEscrowParameters,
     EscrowCreationFailed,
     EscrowVerificationFailed,
-    
+
     // Network/System Errors
     NetworkError,
     SystemError,
     EncodeError,
     General(String),
+
+    // Chain Fusion specific errors
+    ChainFusionRequestFailed,
+    InvalidReceipt,
 }
 
 /// Token types supported by the escrow manager
