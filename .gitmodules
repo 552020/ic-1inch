@@ -1,3 +1,6 @@
 [submodule "eth"]
 	path = eth
 	url = git@github.com:552020/cross-chain-swap.git
+[submodule "fusion-resolver-example"]
+	path = fusion-resolver-example
+	url = https://github.com/1inch/fusion-resolver-example.git
