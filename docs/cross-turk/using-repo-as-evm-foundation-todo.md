@@ -134,7 +134,7 @@ forge script script/DeployEscrowFactoryBaseSepolia.s.sol --rpc-url $BASE_SEPOLIA
 
 ### **3.3 Update Your ICP Canisters**
 
-- [ ] Update `src/escrow/src/` to reference new EVM contract addresses
+- [ ] Update `src/escrow_manager/src/` to reference new EVM contract addresses
 - [ ] Update any cross-chain coordination logic
 - [ ] Test ICP canister integration with new EVM foundation
 - [ ] Verify threshold ECDSA integration works

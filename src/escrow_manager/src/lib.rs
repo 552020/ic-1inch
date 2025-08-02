@@ -228,6 +228,23 @@ fn get_fusion_escrow_status(escrow_id: String) -> Option<FusionEscrow> {
     memory::get_fusion_escrow(&escrow_id).ok()
 }
 
+/// Check if tokens are locked for an order - Used by: Resolvers/Relayers
+#[ic_cdk::query]
+fn is_tokens_locked(order_id: String) -> bool {
+    // Find escrow for this order
+    let escrows = memory::get_all_fusion_escrows();
+
+    for escrow in escrows {
+        if escrow.order_id == order_id {
+            // Check if escrow is funded (tokens are locked)
+            return escrow.status == EscrowStatus::Funded;
+        }
+    }
+
+    // No escrow found for this order
+    false
+}
+
 /// List all escrows for debugging - Used by: Developers
 #[ic_cdk::query]
 fn list_fusion_escrows() -> Vec<FusionEscrow> {
@@ -333,11 +350,9 @@ async fn verify_order_direction(order_id: &str) -> Result<bool, EscrowError> {
         .map_err(|_| EscrowError::SystemError)?;
 
     // Call orderbook to get order details
-    let result: Result<(Option<types::FusionOrder>,), _> = ic_cdk::call(
-        orderbook_canister_id,
-        "get_fusion_order_status",
-        (order_id.to_string(),),
-    ).await;
+    let result: Result<(Option<types::FusionOrder>,), _> =
+        ic_cdk::call(orderbook_canister_id, "get_fusion_order_status", (order_id.to_string(),))
+            .await;
 
     match result {
         Ok((Some(order),)) => {
@@ -357,11 +372,9 @@ async fn verify_caller_is_maker(order_id: &str, caller: Principal) -> Result<boo
         .map_err(|_| EscrowError::SystemError)?;
 
     // Call orderbook to get order details
-    let result: Result<(Option<types::FusionOrder>,), _> = ic_cdk::call(
-        orderbook_canister_id,
-        "get_fusion_order_status",
-        (order_id.to_string(),),
-    ).await;
+    let result: Result<(Option<types::FusionOrder>,), _> =
+        ic_cdk::call(orderbook_canister_id, "get_fusion_order_status", (order_id.to_string(),))
+            .await;
 
     match result {
         Ok((Some(order),)) => {
