@@ -1,8 +1,8 @@
 {
   "canisters": {
-    "limit-order": {
-      "candid": "src/limit-order/limit-order.did",
-      "package": "limit-order",
+    "limit_order": {
+      "candid": "src/limit_order/limit_order.did",
+      "package": "limit_order",
       "type": "rust"
     },
     "orderbook": {
@@ -16,7 +16,7 @@
       "type": "rust"
     },
     "frontend": {
-      "dependencies": ["limit-order"],
+      "dependencies": ["limit_order"],
       "source": ["src/frontend/dist"],
       "type": "assets"
     },
