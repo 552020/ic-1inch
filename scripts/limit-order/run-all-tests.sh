@@ -27,7 +27,7 @@ print_status() {
 run_test() {
     echo -e "\n${YELLOW}Running: $1${NC}"
     echo "----------------------------------------"
-    if ./scripts/limit-orders/$1; then
+    if ./scripts/limit-order/$1; then
         print_status 0 "$1 completed successfully"
     else
         print_status 1 "$1 failed"
@@ -78,7 +78,7 @@ run_test "test-order-cancellation.sh"
 
 # Phase 5: Manual Tests (if available)
 echo -e "\n${YELLOW}Phase 5: Manual Tests${NC}"
-if [ -f "scripts/limit-orders/test-limit-orders-manual.sh" ]; then
+if [ -f "scripts/limit-order/test-limit-orders-manual.sh" ]; then
     run_test "test-limit-orders-manual.sh"
 else
     echo -e "${YELLOW}⚠️  Manual test script not found, skipping...${NC}"

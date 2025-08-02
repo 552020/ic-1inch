@@ -1,9 +1,9 @@
 #!/bin/bash
-# limit-order-manual-test-setup.sh - Setup environment for manual testing
+# limit_order-manual-test-setup.sh - Setup environment for manual testing
 
 set -e  # Exit on any error
 
-echo "🔧 Setting up environment for limit-order manual testing..."
+echo "🔧 Setting up environment for limit_order manual testing..."
 echo "========================================================"
 
 # Colors for output
@@ -77,11 +77,11 @@ TAKER_PRINCIPAL=$(dfx identity use taker 2>/dev/null && dfx identity get-princip
 print_success "maker: $MAKER_PRINCIPAL"
 print_success "taker: $TAKER_PRINCIPAL"
 
-# Get limit-order canister ID
-print_status "Getting limit-order canister ID..."
-if dfx canister id limit-order &> /dev/null; then
-    LIMIT_ORDER_CANISTER_ID=$(dfx canister id limit-order)
-    print_success "limit-order: $LIMIT_ORDER_CANISTER_ID"
+# Get limit_order canister ID
+print_status "Getting limit_order canister ID..."
+if dfx canister id limit_order &> /dev/null; then
+    LIMIT_ORDER_CANISTER_ID=$(dfx canister id limit_order)
+    print_success "limit_order: $LIMIT_ORDER_CANISTER_ID"
 else
     print_warning "Limit-order canister not found - deploy with: ./scripts/deploy-local.sh"
     LIMIT_ORDER_CANISTER_ID=""
@@ -138,7 +138,7 @@ switch-to-taker() {
 
 # Test helper functions
 test-create-order() {
-    dfx canister call limit-order create_order "(
+    dfx canister call limit_order create_order "(
         record {
             maker = principal \"\$MAKER_PRINCIPAL\";
             token_a = principal \"\$TEST_TOKEN_A_ID\";
@@ -151,19 +151,19 @@ test-create-order() {
 }
 
 test-fill-order() {
-    dfx canister call limit-order fill_order "(\$1:nat64)"
+    dfx canister call limit_order fill_order "(\$1:nat64)"
 }
 
 test-cancel-order() {
-    dfx canister call limit-order cancel_order "(\$1:nat64)"
+    dfx canister call limit_order cancel_order "(\$1:nat64)"
 }
 
 test-list-orders() {
-    dfx canister call limit-order get_active_orders "()"
+    dfx canister call limit_order get_active_orders "()"
 }
 
 test-get-stats() {
-    dfx canister call limit-order get_system_stats "()"
+    dfx canister call limit_order get_system_stats "()"
 }
 EOF
 

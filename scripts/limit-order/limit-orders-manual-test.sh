@@ -2,11 +2,11 @@
 
 # ICP Limit Order Protocol - Automated Manual Testing Script
 # This script automates the manual testing guide up to a specified step
-# Usage: ./scripts/limit-orders-manual-test.sh [step]
+# Usage: ./scripts/limit_orders-manual-test.sh [step]
 # Examples: 
-#   ./scripts/limit-orders-manual-test.sh 1.2    # Stop after step 1.2
-#   ./scripts/limit-orders-manual-test.sh 2.3    # Stop after step 2.3
-#   ./scripts/limit-orders-manual-test.sh        # Run all steps
+#   ./scripts/limit_orders-manual-test.sh 1.2    # Stop after step 1.2
+#   ./scripts/limit_orders-manual-test.sh 2.3    # Stop after step 2.3
+#   ./scripts/limit_orders-manual-test.sh        # Run all steps
 
 set -e  # Exit on any error
 
@@ -54,10 +54,10 @@ if [ ! -f "dfx.json" ]; then
 fi
 
 # Run setup script to ensure fresh environment variables
-if [ -f "scripts/limit-order-manual-test-setup.sh" ]; then
-    ./scripts/limit-order-manual-test-setup.sh > /dev/null 2>&1
+if [ -f "scripts/limit_order-manual-test-setup.sh" ]; then
+    ./scripts/limit_order-manual-test-setup.sh > /dev/null 2>&1
 else
-    print_error "Setup script not found: scripts/limit-order-manual-test-setup.sh"
+    print_error "Setup script not found: scripts/limit_order-manual-test-setup.sh"
     exit 1
 fi
 
@@ -71,9 +71,9 @@ echo ""
 echo "📋 Scenario 1: Maker Creates Limit Order"
 
 ## Step 1.1: Verify System is Ready
-echo "1.1 Testing limit-order connection..."
+echo "1.1 Testing limit_order connection..."
 
-RESPONSE=$(dfx canister call limit-order greet '("Prime")')
+RESPONSE=$(dfx canister call limit_order greet '("Prime")')
 if [[ $RESPONSE == *"Hello, Prime!"* ]]; then
     echo "   ✅ Backend connected"
 else
@@ -100,7 +100,7 @@ fi
 
 # Create order: Sell 10 TOKEN_A for 0.001 TOKEN_B
 EXPIRATION=$(($(date +%s) + 3600))000000000
-ORDER_RESPONSE=$(dfx canister call limit-order create_order "(
+ORDER_RESPONSE=$(dfx canister call limit_order create_order "(
   principal \"$MAKER_PRINCIPAL\",
   principal \"$TEST_TOKEN_A\",
   principal \"$TEST_TOKEN_B\",
@@ -128,7 +128,7 @@ should_stop "1.2"
 ## Step 1.3: Verify Order was Created
 echo "1.3 Verifying order..."
 
-ORDER_DETAILS=$(dfx canister call limit-order get_order_by_id "($ORDER_ID:nat64)")
+ORDER_DETAILS=$(dfx canister call limit_order get_order_by_id "($ORDER_ID:nat64)")
 if [[ $ORDER_DETAILS == *"id = $ORDER_ID"* ]]; then
     echo "   ✅ Order $ORDER_ID verified"
 else
@@ -141,7 +141,7 @@ should_stop "1.3"
 ## Step 1.4: View All Active Orders
 echo "1.4 Checking active orders..."
 
-ACTIVE_ORDERS=$(dfx canister call limit-order get_active_orders '()')
+ACTIVE_ORDERS=$(dfx canister call limit_order get_active_orders '()')
 if [[ $ACTIVE_ORDERS == *"id = $ORDER_ID"* ]]; then
     echo "   ✅ Order $ORDER_ID in active list"
 else
@@ -155,7 +155,7 @@ should_stop "1.4"
 echo "1.5 Creating second order..."
 
 EXPIRATION2=$(($(date +%s) + 7200))000000000
-ORDER2_RESPONSE=$(dfx canister call limit-order create_order "(
+ORDER2_RESPONSE=$(dfx canister call limit_order create_order "(
   principal \"$MAKER_PRINCIPAL\",
   principal \"$TEST_TOKEN_A\",
   principal \"$TEST_TOKEN_B\",
@@ -183,7 +183,7 @@ should_stop "1.5"
 ## Step 1.6: Verify Both Orders are Active
 echo "1.6 Verifying both orders..."
 
-ACTIVE_ORDERS_FINAL=$(dfx canister call limit-order get_active_orders '()')
+ACTIVE_ORDERS_FINAL=$(dfx canister call limit_order get_active_orders '()')
 if [[ $ACTIVE_ORDERS_FINAL == *"id = $ORDER_ID"* ]] && [[ $ACTIVE_ORDERS_FINAL == *"id = $ORDER2_ID"* ]]; then
     echo "   ✅ Both orders active"
 else
@@ -231,7 +231,7 @@ should_stop "2.2"
 ## Step 2.3: Discover Available Orders
 echo "2.3 Discovering orders..."
 
-TAKER_ORDERS=$(dfx canister call limit-order get_active_orders '()')
+TAKER_ORDERS=$(dfx canister call limit_order get_active_orders '()')
 if [[ $TAKER_ORDERS == *"id = $ORDER_ID"* ]]; then
     echo "   ✅ Taker can see order $ORDER_ID"
 else
@@ -256,7 +256,7 @@ should_stop "2.4"
 ## Step 2.5: Fill the Order
 echo "2.5 Filling order $ORDER_ID..."
 
-FILL_RESPONSE=$(dfx canister call limit-order fill_order "($ORDER_ID:nat64)")
+FILL_RESPONSE=$(dfx canister call limit_order fill_order "($ORDER_ID:nat64)")
 if [[ $FILL_RESPONSE == *"Ok"* ]]; then
     echo "   ✅ Order $ORDER_ID filled"
 else
@@ -285,7 +285,7 @@ echo ""
 echo "📋 Final Verification"
 
 ## Check if order was actually filled
-FINAL_ACTIVE_ORDERS=$(dfx canister call limit-order get_active_orders '()')
+FINAL_ACTIVE_ORDERS=$(dfx canister call limit_order get_active_orders '()')
 if [[ $FINAL_ACTIVE_ORDERS != *"id = $ORDER_ID"* ]]; then
     echo "   ✅ Order $ORDER_ID filled successfully"
 else
@@ -293,7 +293,7 @@ else
 fi
 
 ## Get system statistics
-STATS=$(dfx canister call limit-order get_system_stats '()')
+STATS=$(dfx canister call limit_order get_system_stats '()')
 echo "   ✅ System stats: $STATS"
 
 echo ""
