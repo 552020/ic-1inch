@@ -9,6 +9,36 @@ type Order = record {
   expiration : nat64;
   taker_asset : principal;
   receiver : principal;
+  order_type : OrderType;
+  processing_strategy : ProcessingStrategy;
+};
+type OrderType = variant {
+  Normal;
+  Fusion;
+  CrossChain;
+};
+type ProcessingStrategy = variant {
+  DirectTransfer;
+  EscrowCoordination;
+};
+type OrderMetadata = record {
+  hashlock : opt blob;
+  target_chain : opt text;
+  timelock : opt nat64;
+  chain_id : opt nat32;
+  safety_deposit : opt nat64;
+  escrow_address : opt text;
+  resolver_address : opt text;
+  preimage : opt blob;
+};
+type OrderState = variant {
+  Active;
+  Pending;
+  EscrowCreated;
+  Filled;
+  Cancelled;
+  Expired;
+  Failed;
 };
 type OrderError = variant {
   InvalidAssetPair;
@@ -36,11 +66,21 @@ type OrderError = variant {
   InvalidOrderId;
   SystemOverloaded;
   AnonymousCaller;
-};
-type OrderMetadata = record {
-  hashlock : opt blob;
-  target_chain : opt text;
-  timelock : opt nat64;
+  InvalidHashlock;
+  HashlockNotFound;
+  TimelockExpired;
+  CrossChainCoordinationFailed;
+  InvalidPreimage;
+  EscrowManagerUnavailable;
+  EscrowCreationFailed : text;
+  EscrowCompletionFailed : text;
+  CrossCanisterCallFailed : text;
+  InvalidOrderType;
+  UnsupportedOrderType;
+  EscrowNotFound;
+  EscrowAlreadyCompleted;
+  EscrowExpired;
+  HashlockVerificationFailed;
 };
 type Result = variant { Ok; Err : OrderError };
 type Result_1 = variant { Ok : nat64; Err : OrderError };
@@ -51,6 +91,50 @@ type SystemStats = record {
   orders_created : nat64;
   orders_cancelled : nat64;
 };
+type HashlockInfo = record {
+  order_id : nat64;
+  hashlock : blob;
+  preimage : opt blob;
+  created_at : nat64;
+  revealed_at : opt nat64;
+};
+type TimelockInfo = record {
+  order_id : nat64;
+  timelock : nat64;
+  created_at : nat64;
+  expires_at : nat64;
+};
+type CrossChainParams = record {
+  target_chain : opt text;
+  chain_id : opt nat32;
+  hashlock : opt blob;
+  timelock : opt nat64;
+  safety_deposit : opt nat64;
+};
+type CrossChainStats = record {
+  total_cross_chain_orders : nat64;
+  completed_swaps : nat64;
+  failed_swaps : nat64;
+  expired_orders : nat64;
+  volume_by_chain : vec record { text; nat64 };
+  average_completion_time : nat64;
+};
+type CrossChainOrder = record {
+  order_id : nat64;
+  hashlock : blob;
+  timelock : nat64;
+  target_chain : text;
+  escrow_address : opt text;
+  status : CrossChainStatus;
+};
+type CrossChainStatus = variant {
+  Pending;
+  EscrowCreated;
+  Filled;
+  Expired;
+  Failed;
+};
+type Result_2 = variant { Ok : text; Err : OrderError };
 service : {
   cancel_order : (nat64) -> (Result);
   create_order : (principal, principal, principal, nat64, nat64, nat64) -> (
@@ -63,4 +147,21 @@ service : {
   get_orders_by_maker : (principal) -> (vec Order) query;
   get_system_stats : () -> (SystemStats) query;
   greet : (text) -> (text) query;
-}
+  create_cross_chain_order : (principal, principal, principal, nat64, nat64, nat64, CrossChainParams) -> (
+      Result_1,
+    );
+  fill_cross_chain_order : (nat64, blob) -> (Result);
+  reveal_hashlock : (nat64, blob) -> (Result);
+  get_hashlock_info : (blob) -> (opt HashlockInfo) query;
+  get_timelock_info : (nat64) -> (opt TimelockInfo) query;
+  is_timelock_expired : (nat64) -> (bool) query;
+  get_timelock_remaining_time : (nat64) -> (opt nat64) query;
+  get_cross_chain_orders : () -> (vec CrossChainOrder) query;
+  get_cross_chain_stats : () -> (CrossChainStats) query;
+  hackathon_demo : () -> (Result_2);
+  create_cross_chain_order_mvp : (principal, principal, principal, nat64, nat64, text) -> (
+      Result_1,
+    );
+  execute_cross_chain_swap_mvp : (nat64, blob) -> (Result);
+  simulate_evm_coordination : () -> (text) query;
+};

@@ -12,6 +12,82 @@ pub type OrderId = u64;
 pub const MAX_ACTIVE_ORDERS: usize = 10_000;
 pub const MAX_EXPIRATION_DAYS: u64 = 30;
 
+// ============================================================================
+// HASHLOCK & TIMELOCK TYPES - Cross-Chain Functionality
+// ============================================================================
+
+#[derive(CandidType, Deserialize, Clone, Debug, PartialEq)]
+pub enum OrderType {
+    Normal,     // ICP-ICP trading (direct transfers)
+    Fusion,     // ICP-Ethereum trading (escrow coordination)
+    CrossChain, // Generic cross-chain trading
+}
+
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub enum ProcessingStrategy {
+    DirectTransfer,     // Execute direct token transfers
+    EscrowCoordination, // Create escrows and coordinate
+}
+
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub struct HashlockInfo {
+    pub order_id: OrderId,
+    pub hashlock: Vec<u8>,
+    pub preimage: Option<Vec<u8>>,
+    pub created_at: u64,
+    pub revealed_at: Option<u64>,
+}
+
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub struct TimelockInfo {
+    pub order_id: OrderId,
+    pub timelock: u64,
+    pub created_at: u64,
+    pub expires_at: u64,
+}
+
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub struct CrossChainOrder {
+    pub order_id: OrderId,
+    pub hashlock: Vec<u8>,
+    pub timelock: u64,
+    pub target_chain: String,
+    pub escrow_address: Option<String>,
+    pub status: CrossChainStatus,
+}
+
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub enum CrossChainStatus {
+    Pending,       // Order created, waiting for cross-chain coordination
+    EscrowCreated, // EVM escrow created
+    Filled,        // Cross-chain swap completed
+    Expired,       // Timelock expired
+    Failed,        // Cross-chain swap failed
+}
+
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub struct CrossChainParams {
+    pub target_chain: Option<String>,
+    pub chain_id: Option<u32>,
+    pub hashlock: Option<Vec<u8>>,
+    pub timelock: Option<u64>,
+    pub safety_deposit: Option<u64>,
+}
+
+#[derive(CandidType, Deserialize, Clone, Debug)]
+pub struct CrossChainStats {
+    pub total_cross_chain_orders: u64,
+    pub completed_swaps: u64,
+    pub failed_swaps: u64,
+    pub expired_orders: u64,
+    pub volume_by_chain: HashMap<String, u64>,
+    pub average_completion_time: u64, // in nanoseconds
+}
+
+// ============================================================================
+// CORE ORDER TYPES
+// ============================================================================
+
 // Core order structure
 #[derive(CandidType, Deserialize, Clone, Debug)]
 pub struct Order {
@@ -25,24 +101,36 @@ pub struct Order {
     pub expiration: u64, // Nanoseconds since epoch
     pub created_at: u64,
 
+    // Order Type Classification
+    pub order_type: OrderType,
+    pub processing_strategy: ProcessingStrategy,
+
     // Extension fields for future ChainFusion+ compatibility
     pub metadata: Option<OrderMetadata>,
 }
 
 #[derive(CandidType, Deserialize, Clone, Debug)]
 pub struct OrderMetadata {
-    // Reserved for future cross-chain fields
+    // Cross-chain fields for fusion orders
     pub hashlock: Option<Vec<u8>>,
     pub timelock: Option<u64>,
     pub target_chain: Option<String>,
+    pub chain_id: Option<u32>,
+    pub safety_deposit: Option<u64>,
+    pub escrow_address: Option<String>,
+    pub resolver_address: Option<String>,
+    pub preimage: Option<Vec<u8>>,
 }
 
 #[derive(CandidType, Deserialize, Clone, Debug, PartialEq)]
 pub enum OrderState {
-    Active,    // Order is available for filling
-    Filled,    // Order has been completely filled
-    Cancelled, // Order has been cancelled by maker
-    Expired,   // Order has passed expiration time
+    Active,        // Order is available for filling
+    Pending,       // Fusion order: escrow creation in progress
+    EscrowCreated, // Fusion order: escrows created, waiting for completion
+    Filled,        // Order has been completely filled
+    Cancelled,     // Order has been cancelled by maker
+    Expired,       // Order has passed expiration time
+    Failed,        // Fusion order: escrow creation or completion failed
 }
 
 #[derive(CandidType, Deserialize, Clone, Debug)]
@@ -73,6 +161,29 @@ pub enum OrderError {
     TransferFailed(String),
     BalanceCheckFailed(String),
     TokenNotSupported(String),
+
+    // Cross-Chain Errors
+    InvalidHashlock,
+    HashlockNotFound,
+    TimelockExpired,
+    CrossChainCoordinationFailed,
+    InvalidPreimage,
+
+    // Cross-Canister Communication Errors
+    EscrowManagerUnavailable,
+    EscrowCreationFailed(String),
+    EscrowCompletionFailed(String),
+    CrossCanisterCallFailed(String),
+
+    // Order Type Errors
+    InvalidOrderType,
+    UnsupportedOrderType,
+
+    // Escrow Coordination Errors
+    EscrowNotFound,
+    EscrowAlreadyCompleted,
+    EscrowExpired,
+    HashlockVerificationFailed,
 
     // System Errors
     SystemError(String),
@@ -128,6 +239,36 @@ impl std::fmt::Display for OrderError {
             OrderError::TransferFailed(msg) => write!(f, "Transfer failed: {}", msg),
             OrderError::BalanceCheckFailed(msg) => write!(f, "Balance check failed: {}", msg),
             OrderError::TokenNotSupported(msg) => write!(f, "Token not supported: {}", msg),
+
+            // Cross-Chain Errors
+            OrderError::InvalidHashlock => write!(f, "Invalid hashlock"),
+            OrderError::HashlockNotFound => write!(f, "Hashlock not found"),
+            OrderError::TimelockExpired => write!(f, "Timelock expired"),
+            OrderError::CrossChainCoordinationFailed => {
+                write!(f, "Cross-chain coordination failed")
+            }
+            OrderError::InvalidPreimage => write!(f, "Invalid preimage"),
+
+            // Cross-Canister Communication Errors
+            OrderError::EscrowManagerUnavailable => write!(f, "Escrow manager unavailable"),
+            OrderError::EscrowCreationFailed(msg) => write!(f, "Escrow creation failed: {}", msg),
+            OrderError::EscrowCompletionFailed(msg) => {
+                write!(f, "Escrow completion failed: {}", msg)
+            }
+            OrderError::CrossCanisterCallFailed(msg) => {
+                write!(f, "Cross-canister call failed: {}", msg)
+            }
+
+            // Order Type Errors
+            OrderError::InvalidOrderType => write!(f, "Invalid order type"),
+            OrderError::UnsupportedOrderType => write!(f, "Unsupported order type"),
+
+            // Escrow Coordination Errors
+            OrderError::EscrowNotFound => write!(f, "Escrow not found"),
+            OrderError::EscrowAlreadyCompleted => write!(f, "Escrow already completed"),
+            OrderError::EscrowExpired => write!(f, "Escrow expired"),
+            OrderError::HashlockVerificationFailed => write!(f, "Hashlock verification failed"),
+
             OrderError::SystemError(msg) => write!(f, "System error: {}", msg),
             OrderError::MemoryError(msg) => write!(f, "Memory error: {}", msg),
             OrderError::ConcurrencyError(msg) => write!(f, "Concurrency error: {}", msg),
@@ -263,4 +404,3 @@ impl TokenInterface {
         }
     }
 }
-

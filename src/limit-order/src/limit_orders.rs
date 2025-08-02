@@ -9,7 +9,7 @@ use crate::memory::{
 };
 use crate::types::{
     Order, OrderError, OrderId, OrderResult, SystemStats, TokenInterface, MAX_ACTIVE_ORDERS,
-    MAX_EXPIRATION_DAYS,
+    MAX_EXPIRATION_DAYS, OrderType, ProcessingStrategy,
 };
 // ============================================================================
 // VALIDATION FUNCTIONS
@@ -283,6 +283,8 @@ pub async fn create_order(
         taking_amount,
         expiration,
         created_at: time(),
+        order_type: OrderType::Normal, // Default to normal order for MVP
+        processing_strategy: ProcessingStrategy::DirectTransfer, // Default to direct transfer
         metadata: None, // MVP doesn't use metadata, reserved for ChainFusion+
     };
 
@@ -583,6 +585,8 @@ pub mod tests {
             expiration: time() + 3600_000_000_000, // 1 hour
             created_at: time(),
 
+            order_type: OrderType::Normal,
+            processing_strategy: ProcessingStrategy::DirectTransfer,
             metadata: None,
         }
     }

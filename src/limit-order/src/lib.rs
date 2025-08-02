@@ -1,3 +1,4 @@
+mod hashlock_timelock;
 mod limit_orders;
 mod memory;
 #[cfg(test)]
@@ -6,7 +7,8 @@ mod mock_icrc1_token;
 mod test_utils;
 mod types;
 
-use types::{Order, OrderError, OrderId, SystemStats};
+use hashlock_timelock::{CrossChainManager, HashlockManager, TimelockManager};
+use types::{CrossChainParams, CrossChainStats, Order, OrderError, OrderId, SystemStats};
 
 // Keep the hello world function for testing
 #[ic_cdk::query]
@@ -82,6 +84,125 @@ fn get_orders_by_asset_pair(
 #[ic_cdk::query]
 fn get_system_stats() -> SystemStats {
     limit_orders::get_system_statistics()
+}
+
+// ============================================================================
+// CROSS-CHAIN FUNCTIONS - Hashlock & Timelock Management
+// ============================================================================
+
+/// Create a cross-chain order with hashlock and timelock - Used by: Makers
+#[ic_cdk::update]
+async fn create_cross_chain_order(
+    receiver: candid::Principal,
+    maker_asset: candid::Principal,
+    taker_asset: candid::Principal,
+    making_amount: u64,
+    taking_amount: u64,
+    expiration: u64,
+    cross_chain_params: CrossChainParams,
+) -> Result<OrderId, OrderError> {
+    // TODO: Implement cross-chain order creation
+    // This will integrate with the escrow manager for fusion orders
+    Err(OrderError::SystemError("Cross-chain order creation not yet implemented".to_string()))
+}
+
+/// Fill a cross-chain order with preimage verification - Used by: Takers/Resolvers
+#[ic_cdk::update]
+async fn fill_cross_chain_order(order_id: OrderId, preimage: Vec<u8>) -> Result<(), OrderError> {
+    // Verify preimage and complete cross-chain swap
+    HashlockManager::reveal_preimage(order_id, preimage)
+}
+
+/// Reveal hashlock preimage - Used by: Resolvers
+#[ic_cdk::update]
+fn reveal_hashlock(order_id: OrderId, preimage: Vec<u8>) -> Result<(), OrderError> {
+    HashlockManager::reveal_preimage(order_id, preimage)
+}
+
+/// Get hashlock information - Used by: Frontend/Monitoring
+#[ic_cdk::query]
+fn get_hashlock_info(hashlock: Vec<u8>) -> Option<types::HashlockInfo> {
+    HashlockManager::get_hashlock_info(&hashlock)
+}
+
+/// Get timelock information - Used by: Frontend/Monitoring
+#[ic_cdk::query]
+fn get_timelock_info(order_id: OrderId) -> Option<types::TimelockInfo> {
+    TimelockManager::get_timelock_info(order_id)
+}
+
+/// Check if timelock has expired - Used by: Frontend/Monitoring
+#[ic_cdk::query]
+fn is_timelock_expired(order_id: OrderId) -> bool {
+    TimelockManager::is_timelock_expired(order_id)
+}
+
+/// Get remaining time for timelock - Used by: Frontend/Monitoring
+#[ic_cdk::query]
+fn get_timelock_remaining_time(order_id: OrderId) -> Option<u64> {
+    TimelockManager::get_remaining_time(order_id)
+}
+
+/// Get all cross-chain orders - Used by: Frontend/Monitoring
+#[ic_cdk::query]
+fn get_cross_chain_orders() -> Vec<hashlock_timelock::CrossChainOrder> {
+    CrossChainManager::get_all_cross_chain_orders()
+}
+
+/// Get cross-chain statistics - Used by: Frontend/Monitoring
+#[ic_cdk::query]
+fn get_cross_chain_stats() -> CrossChainStats {
+    // TODO: Implement cross-chain statistics
+    CrossChainStats {
+        total_cross_chain_orders: 0,
+        completed_swaps: 0,
+        failed_swaps: 0,
+        expired_orders: 0,
+        volume_by_chain: std::collections::HashMap::new(),
+        average_completion_time: 0,
+    }
+}
+
+// ============================================================================
+// HACKATHON DEMO FUNCTIONS
+// ============================================================================
+
+/// Complete hackathon demo function - Used by: Demo
+#[ic_cdk::update]
+async fn hackathon_demo() -> Result<String, OrderError> {
+    // TODO: Implement complete demo flow
+    Ok("Hackathon demo not yet implemented".to_string())
+}
+
+/// Create a cross-chain order for MVP demo - Used by: Demo
+#[ic_cdk::update]
+async fn create_cross_chain_order_mvp(
+    receiver: candid::Principal,
+    maker_asset: candid::Principal,
+    taker_asset: candid::Principal,
+    making_amount: u64,
+    taking_amount: u64,
+    target_chain: String,
+) -> Result<OrderId, OrderError> {
+    // TODO: Implement MVP cross-chain order creation
+    Err(OrderError::SystemError("MVP cross-chain order creation not yet implemented".to_string()))
+}
+
+/// Execute cross-chain swap for MVP demo - Used by: Demo
+#[ic_cdk::update]
+async fn execute_cross_chain_swap_mvp(
+    order_id: OrderId,
+    preimage: Vec<u8>,
+) -> Result<(), OrderError> {
+    // TODO: Implement MVP cross-chain swap execution
+    Err(OrderError::SystemError("MVP cross-chain swap execution not yet implemented".to_string()))
+}
+
+/// Simulate EVM coordination for demo - Used by: Demo
+#[ic_cdk::query]
+fn simulate_evm_coordination() -> String {
+    // TODO: Implement EVM coordination simulation
+    "EVM coordination simulation not yet implemented".to_string()
 }
 
 // ============================================================================
