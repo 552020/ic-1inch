@@ -443,3 +443,31 @@ For more information, see the [ICP Developer Documentation](https://internetcomp
 ## 🏁 Final Notes
 
 This project showcases **cross-chain composability** by bridging ICP and Ethereum through existing DeFi infrastructure. It's a foundational step for building more robust relayer systems and privacy-preserving bridges in the future.
+
+---
+
+## Appendix: Deployed Contracts
+
+This project includes deployed contracts on Base Sepolia testnet:
+
+### **Escrow Factory Contract**
+- **Address**: `0x...` (to be added)
+- **Purpose**: HTLC escrow creation and management for cross-chain swaps
+- **Features**: 
+  - Deterministic address computation using Create2
+  - Safety deposit management
+  - Secret verification and asset release
+  - Timelock-based operations
+
+### **Limit Order Protocol Contract**
+- **Address**: `0x...` (to be added)
+- **Purpose**: Order placement and execution for Fusion+ protocol
+- **Features**:
+  - EIP-712 signature verification
+  - Order validation and execution
+  - Taker whitelist management
+  - Fee collection and distribution
+
+### **Submodules**
+- **`eth/`**: Contains the deployed Limit Order Protocol contracts and Escrow Factory implementation
+- **`fusion-resolver-example/`**: Official 1inch Fusion resolver example for testing and integration
