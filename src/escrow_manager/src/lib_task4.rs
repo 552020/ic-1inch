@@ -1,11 +1,9 @@
 // mod chain_fusion; // TODO: Enable in Task 5 (Chain Fusion integration)
 mod memory;
-mod timelock;
 mod types;
 
 use candid::Principal;
 // use chain_fusion::{ChainFusionConfig, ChainFusionManager, EVMEscrowParams}; // TODO: Enable in Task 5
-use timelock::ConservativeTimelocks;
 use types::{
     CoordinationState,
     CrossChainEscrow,
@@ -53,8 +51,7 @@ async fn create_icp_escrow(
     )?;
 
     // === PHASE 2: CONSERVATIVE TIMELOCK CALCULATION ===
-    let conservative_timelocks =
-        timelock::calculate_conservative_timelocks(timelock, current_time)?;
+    let conservative_timelocks = calculate_conservative_timelocks(timelock, current_time)?;
 
     // === PHASE 3: ICP ESCROW CREATION ===
     let escrow = HTLCEscrow {
@@ -164,10 +161,13 @@ async fn create_cross_chain_escrow(
         order_id: order_id.clone(),
         icp_escrow,
         evm_escrow,
-        coordination_state: CoordinationState::EscrowsCreated,
+        coordination_state: CoordinationState::ICPEscrowCreated,
         icp_finality_lag: 0,
         evm_finality_lag: 0,
-        failed_transactions: 0,
+        failed_transactions: Vec::new(),
+        partial_fill: None,
+        expected_amount: 0,
+        executed_amount: 0,
         events: Vec::new(),
         created_at: current_time,
         updated_at: current_time,
@@ -184,6 +184,14 @@ async fn create_cross_chain_escrow(
 #[ic_cdk::query]
 fn list_cross_chain_escrows() -> Vec<CrossChainEscrow> {
     memory::get_all_cross_chain_escrows()
+}
+
+/// Structure to hold conservative timelock calculation results
+struct ConservativeTimelocks {
+    icp_timelock: u64,
+    evm_timelock: u64,
+    buffer_minutes: u64,
+    config: TimelockConfig,
 }
 
 /// Validate escrow creation inputs
@@ -231,9 +239,9 @@ fn validate_escrow_inputs(
         return Err(EscrowError::InvalidAmount);
     }
 
-    // Validate timelock duration
-    let validation = timelock::validate_timelock_duration(timelock, current_time);
-    if !validation.is_valid {
+    // Validate timelock is in the future (minimum 10 minutes)
+    let min_timelock = current_time + (10 * 60 * 1_000_000_000); // 10 minutes in nanoseconds
+    if timelock <= min_timelock {
         return Err(EscrowError::TimelockTooShort);
     }
 
@@ -243,6 +251,51 @@ fn validate_escrow_inputs(
     }
 
     Ok(())
+}
+
+/// Calculate conservative timelocks with 3-minute buffer strategy
+/// Buffer: 2 minutes for finality + 1 minute for coordination
+fn calculate_conservative_timelocks(
+    base_timelock: u64,
+    current_time: u64,
+) -> Result<ConservativeTimelocks, EscrowError> {
+    const BUFFER_MINUTES: u64 = 3;
+    const FINALITY_BUFFER_NS: u64 = 2 * 60 * 1_000_000_000; // 2 minutes in nanoseconds
+    const COORDINATION_BUFFER_NS: u64 = 1 * 60 * 1_000_000_000; // 1 minute in nanoseconds
+    const TOTAL_BUFFER_NS: u64 = FINALITY_BUFFER_NS + COORDINATION_BUFFER_NS;
+
+    // Ensure base timelock is far enough in the future
+    let min_timelock = current_time + TOTAL_BUFFER_NS + (5 * 60 * 1_000_000_000); // 5 min minimum + buffer
+    if base_timelock <= min_timelock {
+        return Err(EscrowError::TimelockTooShort);
+    }
+
+    // Calculate conservative timelocks
+    // ICP gets the full timelock (user-specified)
+    // EVM gets an earlier timelock to ensure ICP can claim first
+    let icp_timelock = base_timelock;
+    let evm_timelock = base_timelock - TOTAL_BUFFER_NS;
+
+    let config = TimelockConfig {
+        deployed_at: current_time,
+        src_withdrawal: 3600,                            // 1 hour for ICP
+        src_public_withdrawal: 7200,                     // 2 hours for ICP
+        src_cancellation: 10800,                         // 3 hours for ICP
+        src_public_cancellation: 14400,                  // 4 hours for ICP
+        dst_withdrawal: 1800,                            // 30 min for EVM (shorter window)
+        dst_public_withdrawal: 3600,                     // 1 hour for EVM
+        dst_cancellation: 5400,                          // 1.5 hours for EVM
+        conservative_buffer: BUFFER_MINUTES as u32 * 60, // 3 minutes in seconds
+    };
+
+    ic_cdk::println!(
+        "📐 Calculated conservative timelocks: ICP={}, EVM={}, buffer={}min",
+        icp_timelock,
+        evm_timelock,
+        BUFFER_MINUTES
+    );
+
+    Ok(ConservativeTimelocks { icp_timelock, evm_timelock, buffer_minutes: BUFFER_MINUTES, config })
 }
 
 /// Get test token canister ID based on token type

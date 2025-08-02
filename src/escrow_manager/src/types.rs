@@ -1,20 +1,23 @@
-use candid::CandidType;
-use serde::{Deserialize, Serialize};
+/// Data types for escrow manager canister
+use candid::{CandidType, Deserialize};
+use serde::Serialize;
 
-/// Supported tokens for cross-chain swaps
+/// Token types supported by the escrow manager
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize, PartialEq)]
 pub enum Token {
     ICP,
     ETH,
 }
 
-/// Enhanced escrow status with HTLC coordination states
+/// Escrow status throughout its lifecycle
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize, PartialEq)]
 pub enum EscrowStatus {
     Created,
     Funded,
-    Claimed,
-    Refunded,
+    Active,
+    Completed,
+    Cancelled,
+    Expired,
 }
 
 /// HTLC coordination state for cross-chain escrow management
@@ -50,19 +53,17 @@ pub struct ChainHealthStatus {
     pub icp_finality_lag: u64,
     pub evm_finality_lag: u64,
     pub failed_transactions: u32,
-    pub last_health_check: u64,
 }
 
-/// Partial fill information for Fusion+ compatibility
+/// Partial fill information for Fusion+ support
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
 pub struct PartialFillInfo {
-    pub is_partial_fill: bool,
-    pub expected_amount: u64,
-    pub executed_amount: u64,
+    pub filled_amount: u64,
+    pub remaining_amount: u64,
     pub fill_percentage: f64,
 }
 
-/// Cross-chain escrow event for auditable coordination history
+/// Cross-chain escrow event types for audit trail
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
 pub enum CrossChainEscrowEvent {
     EscrowCreated { escrow_id: String, chain: String },
@@ -95,7 +96,7 @@ pub struct HTLCEscrow {
     pub src_amount: u64,
     pub dst_amount: u64,
 
-    // Enhanced state management
+    // Escrow metadata
     pub escrow_type: EscrowType,
     pub status: EscrowStatus,
     pub address: String,
@@ -103,19 +104,11 @@ pub struct HTLCEscrow {
     // Timelock configuration
     pub timelock_config: TimelockConfig,
 
-    // Chain Fusion integration
+    // Enhanced features
     pub threshold_ecdsa_key_id: Option<String>,
-
-    // Health monitoring
     pub chain_health_status: Option<ChainHealthStatus>,
-
-    // Partial fill support
     pub partial_fill_info: Option<PartialFillInfo>,
-
-    // Event tracking
     pub events: Vec<CrossChainEscrowEvent>,
-
-    // Metadata
     pub created_at: u64,
     pub updated_at: u64,
 }
@@ -193,6 +186,12 @@ pub enum EscrowError {
 
     // HTLC-specific errors
     InvalidHashlock,
+    InvalidOrderHash,
+    InvalidAddress,
+    InvalidToken,
+    InvalidAmount,
+    TimelockTooShort,
+    EscrowAlreadyExists,
     InvalidTimelockCoordination,
     SecretVerificationFailed,
 
@@ -220,16 +219,14 @@ impl EscrowError {
             EscrowError::InvalidState => "Invalid escrow state".to_string(),
             EscrowError::TimelockNotExpired => "Timelock has not expired".to_string(),
             EscrowError::TimelockExpired => "Timelock has expired".to_string(),
-            EscrowError::InvalidReceipt => "Invalid cross-chain receipt".to_string(),
+            EscrowError::InvalidReceipt => "Invalid receipt provided".to_string(),
             EscrowError::TransferFailed => "Token transfer failed".to_string(),
-            EscrowError::OrderNotFound => "Associated order not found".to_string(),
+            EscrowError::OrderNotFound => "Order not found".to_string(),
             EscrowError::SystemError => "System error occurred".to_string(),
 
             // Chain Fusion error messages
             EscrowError::ChainFusionRequestFailed => "Chain Fusion request failed".to_string(),
-            EscrowError::ThresholdECDSAUnavailable => {
-                "Threshold ECDSA signing unavailable".to_string()
-            }
+            EscrowError::ThresholdECDSAUnavailable => "Threshold ECDSA is unavailable".to_string(),
             EscrowError::EVMAddressDerivationFailed => "Failed to derive EVM address".to_string(),
             EscrowError::EVMEscrowCreationFailed => "Failed to create EVM escrow".to_string(),
 
@@ -242,6 +239,12 @@ impl EscrowError {
 
             // HTLC-specific error messages
             EscrowError::InvalidHashlock => "Invalid hashlock provided".to_string(),
+            EscrowError::InvalidOrderHash => "Invalid order hash provided".to_string(),
+            EscrowError::InvalidAddress => "Invalid address provided".to_string(),
+            EscrowError::InvalidToken => "Invalid token specified".to_string(),
+            EscrowError::InvalidAmount => "Invalid amount specified".to_string(),
+            EscrowError::TimelockTooShort => "Timelock duration is too short".to_string(),
+            EscrowError::EscrowAlreadyExists => "Escrow already exists for this order".to_string(),
             EscrowError::InvalidTimelockCoordination => "Invalid timelock coordination".to_string(),
             EscrowError::SecretVerificationFailed => "Secret verification failed".to_string(),
 
@@ -253,11 +256,15 @@ impl EscrowError {
             EscrowError::EventLoggingFailed => "Failed to log coordination event".to_string(),
 
             // Slippage protection error messages
-            EscrowError::SlippageProtectionViolation => "Slippage protection violation".to_string(),
-            EscrowError::ExecutionAmountMismatch => "Execution amount mismatch".to_string(),
+            EscrowError::SlippageProtectionViolation => {
+                "Slippage protection threshold exceeded".to_string()
+            }
+            EscrowError::ExecutionAmountMismatch => {
+                "Execution amount does not match expected amount".to_string()
+            }
 
             // Partial fill error messages
-            EscrowError::InvalidPartialFill => "Invalid partial fill".to_string(),
+            EscrowError::InvalidPartialFill => "Invalid partial fill parameters".to_string(),
             EscrowError::PartialFillValidationFailed => {
                 "Partial fill validation failed".to_string()
             }
