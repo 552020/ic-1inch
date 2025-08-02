@@ -1,0 +1,3 @@
+[submodule "eth"]
+	path = eth
+	url = git@github.com:552020/cross-chain-swap.git
