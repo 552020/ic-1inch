@@ -56,10 +56,11 @@ graph TB
 - **Virtual Escrow Management**: Create and manage virtual escrows in ICP
 - **Single Escrow Creation**: Create single escrow contracts on EVM chains
 - **Migration Coordination**: Migrate virtual escrows to actual chains
-- **Deterministic Address Computation**: Compute escrow addresses using Create2 algorithm
+- **Deterministic Address Computation**: Compute escrow addresses using Create2 algorithm (Solana-inspired)
 - **Cross-Chain Coordination**: Coordinate escrow operations via Chain Fusion
 - **Safety Deposit Management**: Handle ETH deposits and distribution
 - **State Synchronization**: Maintain consistent state across chains
+- **Solana-Inspired Coordination**: Use ICP as coordination layer (like Solana's PDA)
 
 #### 2. Escrow Source Canister (ICP Asset Management)
 
@@ -147,6 +148,146 @@ impl EscrowFactory {
     }
 }
 ```
+
+### Solana-Inspired Deterministic Address Computation
+
+The escrow factory implements Solana-inspired deterministic address computation for cross-chain escrow creation:
+
+#### **Deterministic Address Computation**
+
+```rust
+impl EscrowFactory {
+    // Compute deterministic escrow addresses (Solana-inspired approach)
+    pub fn compute_deterministic_escrow_addresses(
+        &self,
+        order_hash: [u8; 32],
+        order_data: &OrderData,
+    ) -> Result<(String, String), EscrowError> {
+        // Step 1: Compute ICP escrow address (canister-based)
+        let icp_escrow_address = self.compute_icp_escrow_address(order_hash, order_data);
+
+        // Step 2: Compute EVM escrow address (threshold ECDSA-based)
+        let evm_escrow_address = self.compute_evm_escrow_address(order_hash, order_data);
+
+        Ok((icp_escrow_address, evm_escrow_address))
+    }
+
+    fn compute_icp_escrow_address(
+        &self,
+        order_hash: [u8; 32],
+        order_data: &OrderData,
+    ) -> String {
+        // Use canister ID + order hash for ICP escrow (virtual escrow)
+        // Similar to Solana's PDA but for ICP canister
+        format!("{}:{}", self.canister_id(), hex::encode(order_hash))
+    }
+
+    fn compute_evm_escrow_address(
+        &self,
+        order_hash: [u8; 32],
+        order_data: &OrderData,
+    ) -> String {
+        // Use threshold ECDSA derivation for EVM escrow
+        // This would use ICP's threshold ECDSA to derive deterministic EVM address
+        // For MVP, return a deterministic address based on order hash
+        format!("0x{}", hex::encode(order_hash))
+    }
+
+    // Create escrows at pre-computed addresses
+    pub async fn create_escrows_at_deterministic_addresses(
+        &self,
+        order_id: String,
+        order_data: OrderData,
+    ) -> Result<CrossChainEscrow, EscrowError> {
+        // Step 1: Compute deterministic addresses
+        let (icp_address, evm_address) = self.compute_deterministic_escrow_addresses(
+            order_data.order_hash,
+            &order_data,
+        )?;
+
+        // Step 2: Create ICP escrow at computed address
+        let icp_escrow = self.create_icp_escrow_at_address(icp_address, &order_data).await?;
+
+        // Step 3: Create EVM escrow at computed address
+        let evm_escrow = self.create_evm_escrow_at_address(evm_address, &order_data).await?;
+
+        // Step 4: Return coordinated escrow
+        Ok(CrossChainEscrow {
+            escrow_id: self.generate_cross_chain_id(&order_id),
+            virtual_escrows: vec![icp_escrow],
+            actual_escrows: vec![evm_escrow],
+            coordination_state: CoordinationState::FusionPlusComplete,
+            atomic_creation_completed: true,
+            last_sync_timestamp: ic_cdk::api::time(),
+        })
+    }
+}
+```
+
+### **Solana vs Our Cross-Chain Escrow Approach**
+
+#### **Solana's Single-Chain Solution**
+
+```rust
+// Solana: Single escrow handles both sides
+#[account(
+    seeds = [
+        "escrow".as_bytes(),
+        maker.key().as_ref(),
+        &order_hash,
+    ],
+    bump,
+)]
+escrow: UncheckedAccount<'info>,
+
+// Single escrow structure
+pub struct SolanaEscrow {
+    pub escrow_address: Pubkey,        // PDA-derived address
+    pub maker: Pubkey,                 // Maker's address
+    pub taker: Pubkey,                 // Taker's address
+    pub src_token: Pubkey,             // Source token
+    pub dst_token: Pubkey,             // Destination token
+    pub src_amount: u64,               // Source amount
+    pub dst_amount: u64,               // Destination amount
+    pub hashlock: [u8; 32],           // Secret hash
+    pub timelock: u64,                 // Expiration
+}
+```
+
+#### **Our Cross-Chain Solution**
+
+```rust
+// Our approach: Two separate escrows with coordination
+pub struct CrossChainEscrow {
+    pub escrow_id: String,
+    pub icp_escrow_address: Option<String>,  // ICP escrow address
+    pub evm_escrow_address: Option<String>,  // EVM escrow address
+    pub coordination_state: CoordinationState,
+}
+
+// Deterministic address computation for each chain
+impl EscrowFactory {
+    fn compute_icp_escrow_address(&self, order_hash: &[u8; 32]) -> String {
+        // Use canister ID + order hash (like Solana's PDA)
+        format!("{}:{}", self.canister_id(), hex::encode(order_hash))
+    }
+
+    fn compute_evm_escrow_address(&self, order_hash: &[u8; 32]) -> String {
+        // Use threshold ECDSA derivation (ICP's equivalent to PDA)
+        format!("0x{}", hex::encode(order_hash))
+    }
+}
+```
+
+#### **Key Differences**
+
+| Aspect                 | Solana                        | Our Cross-Chain Approach      |
+| ---------------------- | ----------------------------- | ----------------------------- |
+| **Escrow Count**       | Single escrow                 | Two separate escrows          |
+| **Address Derivation** | PDA (Program Derived Address) | Canister ID + Threshold ECDSA |
+| **Atomicity**          | Single-chain atomic           | Cross-chain coordination      |
+| **Complexity**         | Simple (one chain)            | Complex (two chains)          |
+| **Coordination**       | None needed                   | ICP as coordination layer     |
 
 ## Components and Interfaces
 
