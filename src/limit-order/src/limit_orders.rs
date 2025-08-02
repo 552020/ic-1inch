@@ -8,8 +8,8 @@ use crate::memory::{
     with_cancelled_orders_read, with_filled_orders_read, with_orders,
 };
 use crate::types::{
-    Order, OrderError, OrderId, OrderResult, SystemStats, TokenInterface, MAX_ACTIVE_ORDERS,
-    MAX_EXPIRATION_DAYS, OrderType, ProcessingStrategy,
+    MakerTraits, Order, OrderError, OrderId, OrderResult, OrderType, ProcessingStrategy,
+    SystemStats, TakerTraits, TokenInterface, MAX_ACTIVE_ORDERS, MAX_EXPIRATION_DAYS,
 };
 // ============================================================================
 // VALIDATION FUNCTIONS
@@ -285,7 +285,10 @@ pub async fn create_order(
         created_at: time(),
         order_type: OrderType::Normal, // Default to normal order for MVP
         processing_strategy: ProcessingStrategy::DirectTransfer, // Default to direct transfer
-        metadata: None, // MVP doesn't use metadata, reserved for ChainFusion+
+        salt: order_id,                // Use order_id as salt for uniqueness
+        maker_traits: MakerTraits::None, // Default to no special traits
+        taker_traits: TakerTraits::None, // Default to no special traits
+        metadata: None,                // MVP doesn't use metadata, reserved for ChainFusion+
     };
 
     // Store order
@@ -587,6 +590,9 @@ pub mod tests {
 
             order_type: OrderType::Normal,
             processing_strategy: ProcessingStrategy::DirectTransfer,
+            salt: 1, // Placeholder for salt
+            maker_traits: MakerTraits::None,
+            taker_traits: TakerTraits::None,
             metadata: None,
         }
     }

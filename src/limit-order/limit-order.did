@@ -1,3 +1,24 @@
+type OrderType = variant {
+  Normal;
+  Fusion;
+  CrossChain;
+};
+type ProcessingStrategy = variant {
+  DirectTransfer;
+  EscrowCoordination;
+};
+type MakerTraits = variant {
+  None;
+  PreferFillOrKill;
+  PreferPartialFill;
+  HasExtension;
+};
+type TakerTraits = variant {
+  None;
+  PreferFillOrKill;
+  PreferPartialFill;
+  HasExtension;
+};
 type Order = record {
   id : nat64;
   maker : principal;
@@ -11,15 +32,9 @@ type Order = record {
   receiver : principal;
   order_type : OrderType;
   processing_strategy : ProcessingStrategy;
-};
-type OrderType = variant {
-  Normal;
-  Fusion;
-  CrossChain;
-};
-type ProcessingStrategy = variant {
-  DirectTransfer;
-  EscrowCoordination;
+  salt : nat64;
+  maker_traits : MakerTraits;
+  taker_traits : TakerTraits;
 };
 type OrderMetadata = record {
   hashlock : opt blob;

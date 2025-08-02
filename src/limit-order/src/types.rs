@@ -85,6 +85,26 @@ pub struct CrossChainStats {
 }
 
 // ============================================================================
+// 1INCH LOP COMPLIANCE TYPES
+// ============================================================================
+
+#[derive(CandidType, Deserialize, Clone, Debug, PartialEq)]
+pub enum MakerTraits {
+    None,
+    PreferFillOrKill,
+    PreferPartialFill,
+    HasExtension,
+}
+
+#[derive(CandidType, Deserialize, Clone, Debug, PartialEq)]
+pub enum TakerTraits {
+    None,
+    PreferFillOrKill,
+    PreferPartialFill,
+    HasExtension,
+}
+
+// ============================================================================
 // CORE ORDER TYPES
 // ============================================================================
 
@@ -104,6 +124,11 @@ pub struct Order {
     // Order Type Classification
     pub order_type: OrderType,
     pub processing_strategy: ProcessingStrategy,
+
+    // 1inch LOP Compliance Fields
+    pub salt: u64,                 // Unique identifier for order
+    pub maker_traits: MakerTraits, // Maker preferences
+    pub taker_traits: TakerTraits, // Taker preferences
 
     // Extension fields for future ChainFusion+ compatibility
     pub metadata: Option<OrderMetadata>,
