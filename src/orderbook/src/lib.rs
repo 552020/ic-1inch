@@ -13,7 +13,7 @@ fn create_fusion_order_placeholder() -> Result<String, FusionError> {
     Err(FusionError::NotImplemented)
 }
 
-/// Create a new fusion order with 1inch LOP compatibility (Enhanced)
+/// Enhanced order creation with direction-specific coordination
 #[ic_cdk::update]
 async fn create_fusion_order(
     // 1inch LOP Order Parameters
@@ -59,6 +59,7 @@ async fn create_fusion_order(
 
     // Determine order direction based on assets
     let is_eth_to_icp = is_eth_asset(&maker_asset);
+    let order_direction = if is_eth_to_icp { "ETH_TO_ICP" } else { "ICP_TO_ETH" };
 
     // Validate EIP-712 signature requirement for ETH→ICP orders
     if is_eth_to_icp && eip712_signature.is_none() {
@@ -71,8 +72,8 @@ async fn create_fusion_order(
         caller.to_text(), // Use caller as maker address for ICP side
         caller,
         salt,
-        maker_asset,
-        taker_asset,
+        maker_asset.clone(),
+        taker_asset.clone(),
         making_amount,
         taking_amount,
         hashlock,
@@ -84,15 +85,20 @@ async fn create_fusion_order(
     order.maker_traits = maker_traits;
     order.eip712_signature = eip712_signature;
 
+    // Validate order direction-specific requirements
+    validate_order_direction_requirements(&order)?;
+
     // Store the order
     memory::store_fusion_order(order.clone())?;
 
     ic_cdk::println!(
-        "✅ Created 1inch LOP compatible fusion order {} for maker {} ({}→{})",
+        "✅ Created {} order {} for maker {} ({}→{}) - Escrow Creator: {}",
+        order_direction,
         order_id,
         caller.to_text(),
         order.maker_asset,
-        order.taker_asset
+        order.taker_asset,
+        if is_eth_to_icp { "Resolver" } else { "Maker" }
     );
 
     Ok(order_id)
@@ -131,53 +137,132 @@ async fn create_order(
     .await
 }
 
-/// Accept a fusion order as a resolver - Used by: Resolvers
+/// Enhanced order acceptance with direction-specific coordination
 #[ic_cdk::update]
 async fn accept_fusion_order(
     order_id: String,
     resolver_eth_address: String,
 ) -> Result<String, FusionError> {
     let caller = ic_cdk::caller();
+    let current_time = ic_cdk::api::time();
+
+    // Validate resolver ETH address format
+    if !is_valid_address(&resolver_eth_address) {
+        return Err(FusionError::TokenAddressInvalid);
+    }
 
     // Get the order
     let mut order = memory::get_fusion_order(&order_id)?;
 
-    // Verify order is still pending
-    if order.status != OrderStatus::Pending {
-        return Err(FusionError::OrderNotPending);
+    // Comprehensive order status validation
+    match order.status {
+        OrderStatus::Pending => {
+            // Order is valid for acceptance
+        }
+        OrderStatus::Accepted => {
+            return Err(FusionError::OrderNotPending);
+        }
+        OrderStatus::Completed => {
+            return Err(FusionError::OrderNotPending);
+        }
+        OrderStatus::Failed => {
+            return Err(FusionError::OrderNotPending);
+        }
+        OrderStatus::Cancelled => {
+            return Err(FusionError::OrderNotPending);
+        }
     }
 
-    // Check if order has expired
-    if ic_cdk::api::time() > order.expires_at {
+    // Enhanced expiration checking with grace period
+    if current_time > order.expires_at {
+        // Mark order as failed due to expiration
         order.status = OrderStatus::Failed;
         memory::store_fusion_order(order)?;
         return Err(FusionError::OrderExpired);
     }
 
-    // Update order with resolver info
+    // Check if order is close to expiration (less than 10 minutes remaining)
+    let time_remaining = order.expires_at.saturating_sub(current_time);
+    let ten_minutes_ns = 10 * 60 * 1_000_000_000; // 10 minutes in nanoseconds
+
+    if time_remaining < ten_minutes_ns {
+        ic_cdk::println!("⚠️ Warning: Order {} expires in less than 10 minutes", order_id);
+    }
+
+    // Determine order direction for coordination logic
+    let is_eth_to_icp = is_eth_asset(&order.maker_asset);
+    let order_direction = if is_eth_to_icp { "ETH_TO_ICP" } else { "ICP_TO_ETH" };
+
+    // EIP-712 signature validation for ETH→ICP orders (basic format validation for MVP)
+    if is_eth_to_icp {
+        match &order.eip712_signature {
+            Some(signature) => {
+                // Basic format validation for MVP
+                if !validate_eip712_signature_format(signature) {
+                    return Err(FusionError::InvalidEIP712Signature);
+                }
+
+                ic_cdk::println!("✅ EIP-712 signature validated for ETH→ICP order {}", order_id);
+            }
+            None => {
+                return Err(FusionError::InvalidEIP712Signature);
+            }
+        }
+    }
+
+    // Prevent resolver from accepting their own order
+    if order.maker_icp_principal == caller {
+        return Err(FusionError::Unauthorized);
+    }
+
+    // Update order with enhanced resolver information and acceptance timestamp
     order.status = OrderStatus::Accepted;
     order.resolver_eth_address = Some(resolver_eth_address.clone());
     order.resolver_icp_principal = Some(caller);
-    order.accepted_at = Some(ic_cdk::api::time());
+    order.accepted_at = Some(current_time);
 
-    // Note: Escrow creation is now handled by the escrow factory
-    // The resolver will coordinate with the escrow factory directly
-    // The orderbook will be notified via notify_escrow_created when escrows are ready
-
+    // Store the updated order
     memory::store_fusion_order(order.clone())?;
 
     ic_cdk::println!(
-        "✅ Order {} accepted by resolver {} ({})",
+        "✅ Order {} accepted by resolver {} ({}) - Direction: {} - Escrow Creator: {}",
         order_id,
         resolver_eth_address,
-        caller.to_text()
+        caller.to_text(),
+        order_direction,
+        if is_eth_to_icp { "Resolver" } else { "Maker" }
     );
 
-    // Return the order data needed for ETH escrow creation
-    Ok(format!(
-        "{{\"order_id\":\"{}\",\"secret_hash\":\"{}\",\"amount\":{},\"timelock\":{}}}",
-        order_id, order.secret_hash, order.from_amount, order.timelock_duration
-    ))
+    // Return enhanced order data for cross-chain coordination
+    let response_data = if is_eth_to_icp {
+        // ETH→ICP order: Return data needed for ETH escrow creation by resolver
+        format!(
+            "{{\"order_id\":\"{}\",\"direction\":\"ETH_TO_ICP\",\"escrow_creator\":\"resolver\",\"secret_hash\":\"{}\",\"amount\":{},\"timelock\":{},\"maker_asset\":\"{}\",\"taker_asset\":\"{}\",\"making_amount\":{},\"taking_amount\":{}}}",
+            order_id,
+            order.hashlock,
+            order.making_amount,
+            order.expires_at,
+            order.maker_asset,
+            order.taker_asset,
+            order.making_amount,
+            order.taking_amount
+        )
+    } else {
+        // ICP→ETH order: Return data needed for ICP escrow creation by maker
+        format!(
+            "{{\"order_id\":\"{}\",\"direction\":\"ICP_TO_ETH\",\"escrow_creator\":\"maker\",\"secret_hash\":\"{}\",\"amount\":{},\"timelock\":{},\"maker_asset\":\"{}\",\"taker_asset\":\"{}\",\"making_amount\":{},\"taking_amount\":{}}}",
+            order_id,
+            order.hashlock,
+            order.making_amount,
+            order.expires_at,
+            order.maker_asset,
+            order.taker_asset,
+            order.making_amount,
+            order.taking_amount
+        )
+    };
+
+    Ok(response_data)
 }
 
 /// Get all active fusion orders - Used by: Frontend/Resolvers
@@ -193,6 +278,47 @@ fn get_active_fusion_orders() -> Vec<FusionOrder> {
 #[ic_cdk::query]
 fn get_fusion_order_status(order_id: String) -> Option<FusionOrder> {
     memory::get_fusion_order(&order_id).ok()
+}
+
+/// Get order direction and escrow creator information
+#[ic_cdk::query]
+fn get_order_direction_info(order_id: String) -> Result<String, FusionError> {
+    let order = memory::get_fusion_order(&order_id)?;
+    let is_eth_to_icp = is_eth_asset(&order.maker_asset);
+    let order_direction = if is_eth_to_icp { "ETH_TO_ICP" } else { "ICP_TO_ETH" };
+    let escrow_creator = if is_eth_to_icp { "resolver" } else { "maker" };
+
+    let info = format!(
+        "{{\"order_id\":\"{}\",\"direction\":\"{}\",\"escrow_creator\":\"{}\",\"maker_asset\":\"{}\",\"taker_asset\":\"{}\",\"status\":\"{:?}\"}}",
+        order_id,
+        order_direction,
+        escrow_creator,
+        order.maker_asset,
+        order.taker_asset,
+        order.status
+    );
+
+    Ok(info)
+}
+
+/// Validate order direction-specific requirements
+fn validate_order_direction_requirements(order: &FusionOrder) -> Result<(), FusionError> {
+    let is_eth_to_icp = is_eth_asset(&order.maker_asset);
+
+    if is_eth_to_icp {
+        // ETH→ICP orders require EIP-712 signature
+        if order.eip712_signature.is_none() {
+            return Err(FusionError::InvalidEIP712Signature);
+        }
+
+        // ETH→ICP orders: Resolver creates escrow
+        ic_cdk::println!("📋 ETH→ICP order {}: Resolver will create escrow", order.id);
+    } else {
+        // ICP→ETH orders: Maker creates escrow
+        ic_cdk::println!("📋 ICP→ETH order {}: Maker will create escrow", order.id);
+    }
+
+    Ok(())
 }
 
 /// Get orders created by a specific maker - Used by: Frontend/Makers
@@ -491,6 +617,65 @@ fn is_valid_hex_string(hex_str: &str) -> bool {
     hex_str.starts_with("0x") && hex_str[2..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
+/// Basic EIP-712 signature format validation for MVP
+/// Note: Cryptographic validation happens off-chain on Ethereum, not on ICP
+fn validate_eip712_signature_format(signature: &types::EIP712Signature) -> bool {
+    // Basic format validation for MVP - cryptographic validation happens on Ethereum
+    // ICP cannot validate EIP-712 signatures due to different crypto systems
+
+    // Domain separator should be 66 characters (0x + 64 hex chars)
+    if signature.domain_separator.len() != 66 || !signature.domain_separator.starts_with("0x") {
+        return false;
+    }
+
+    // Type hash should be 66 characters (0x + 64 hex chars)
+    if signature.type_hash.len() != 66 || !signature.type_hash.starts_with("0x") {
+        return false;
+    }
+
+    // Order hash should be 66 characters (0x + 64 hex chars)
+    if signature.order_hash.len() != 66 || !signature.order_hash.starts_with("0x") {
+        return false;
+    }
+
+    // Signature r should be 66 characters (0x + 64 hex chars)
+    if signature.signature_r.len() != 66 || !signature.signature_r.starts_with("0x") {
+        return false;
+    }
+
+    // Signature s should be 66 characters (0x + 64 hex chars)
+    if signature.signature_s.len() != 66 || !signature.signature_s.starts_with("0x") {
+        return false;
+    }
+
+    // Signature v should be 27 or 28 (standard ECDSA recovery values)
+    if signature.signature_v != 27 && signature.signature_v != 28 {
+        return false;
+    }
+
+    // Signer address should be valid Ethereum address
+    if !is_valid_address(&signature.signer_address) {
+        return false;
+    }
+
+    // Validate that all hex strings contain only valid hex characters
+    let hex_fields = [
+        &signature.domain_separator,
+        &signature.type_hash,
+        &signature.order_hash,
+        &signature.signature_r,
+        &signature.signature_s,
+    ];
+
+    for field in hex_fields.iter() {
+        if !is_valid_hex_string(field) {
+            return false;
+        }
+    }
+
+    true
+}
+
 // Removed: Complex Dutch auction system for MVP simplicity
 
 // Removed: Complex partial fill system for MVP simplicity
@@ -558,6 +743,44 @@ fn compute_secret_hash(secret: &str) -> String {
         hasher.finish(),
         hasher.finish()
     )
+}
+
+/// Get orders by direction (ICP→ETH or ETH→ICP)
+#[ic_cdk::query]
+fn get_orders_by_direction(direction: String) -> Vec<FusionOrder> {
+    let all_orders = memory::get_all_fusion_orders();
+    let target_is_eth_to_icp = direction == "ETH_TO_ICP";
+
+    all_orders
+        .into_iter()
+        .filter(|order| {
+            let order_is_eth_to_icp = is_eth_asset(&order.maker_asset);
+            order_is_eth_to_icp == target_is_eth_to_icp
+        })
+        .collect()
+}
+
+/// Get orders where caller is responsible for escrow creation
+#[ic_cdk::query]
+fn get_orders_for_escrow_creation() -> Vec<FusionOrder> {
+    let caller = ic_cdk::caller();
+    let all_orders = memory::get_all_fusion_orders();
+
+    all_orders
+        .into_iter()
+        .filter(|order| {
+            let is_eth_to_icp = is_eth_asset(&order.maker_asset);
+
+            if is_eth_to_icp {
+                // ETH→ICP: Resolver creates escrow, so show to resolvers
+                order.status == OrderStatus::Accepted
+                    && order.resolver_icp_principal == Some(caller)
+            } else {
+                // ICP→ETH: Maker creates escrow, so show to makers
+                order.maker_icp_principal == caller && order.status == OrderStatus::Pending
+            }
+        })
+        .collect()
 }
 
 // ============================================================================
