@@ -3,7 +3,7 @@ members = [
 	"src/limit-order",
 	"src/test_token_icp",
 	"src/test_token_eth",
-	"src/orderbook",
+	"src/relayer",
 	"src/escrow_manager",
 ]
 resolver = "2"

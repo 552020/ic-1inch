@@ -107,7 +107,7 @@ async fn create_fusion_order(
 /// Create a new fusion order for cross-chain swaps (Legacy function for backward compatibility)
 #[ic_cdk::update]
 async fn create_order(
-    maker_eth_address: String,
+    _maker_eth_address: String,
     from_token: Token,
     to_token: Token,
     from_amount: u64,
@@ -685,7 +685,7 @@ fn validate_eip712_signature_format(signature: &types::EIP712Signature) -> bool 
 // ============================================================================
 
 // Simplified escrow notification system for MVP
-/// Called by escrow factory to notify relayer of escrow completion
+/// Called by escrow factory to notify orderbook of escrow completion
 #[ic_cdk::update]
 fn notify_escrow_completed(order_id: String, escrow_address: String) -> Result<(), FusionError> {
     let mut order = memory::get_fusion_order(&order_id)?;
@@ -701,7 +701,7 @@ fn notify_escrow_completed(order_id: String, escrow_address: String) -> Result<(
     Ok(())
 }
 
-/// Called by escrow factory to notify relayer of escrow cancellation
+/// Called by escrow factory to notify orderbook of escrow cancellation
 #[ic_cdk::update]
 fn notify_escrow_cancelled(order_id: String, escrow_address: String) -> Result<(), FusionError> {
     let mut order = memory::get_fusion_order(&order_id)?;
@@ -719,7 +719,7 @@ fn notify_escrow_cancelled(order_id: String, escrow_address: String) -> Result<(
 // ============================================================================
 // REMOVED: ESCROW CREATION FUNCTIONS
 // These functions have been removed as they should be handled by the escrow factory
-// The relayer now uses the notification system to track escrow creation
+// The orderbook now uses the notification system to track escrow creation
 // ============================================================================
 
 /// Calculate safety deposit based on order amount (5% of order value)
@@ -794,7 +794,7 @@ fn pre_upgrade() {
     // Save state to stable memory, but don't panic if it fails
     if let Err(e) = ic_cdk::storage::stable_save((state,)) {
         // Log the error but don't panic - this allows the upgrade to proceed
-        ic_cdk::print(format!("Warning: Failed to save relayer state during upgrade: {:?}", e));
+        ic_cdk::print(format!("Warning: Failed to save orderbook state during upgrade: {:?}", e));
     }
 }
 

@@ -1,13 +1,13 @@
 {
   "canisters": {
     "limit_order": {
-      "candid": "src/limit_order/limit_order.did",
-      "package": "limit_order",
+      "candid": "src/limit-order/limit-order.did",
+      "package": "limit-order",
       "type": "rust"
     },
-    "orderbook": {
-      "candid": "src/orderbook/orderbook.did",
-      "package": "orderbook",
+    "relayer": {
+      "candid": "src/relayer/relayer.did",
+      "package": "relayer",
       "type": "rust"
     },
 
