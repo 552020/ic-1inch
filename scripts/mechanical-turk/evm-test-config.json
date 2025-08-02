@@ -1,0 +1,21 @@
+{
+  "escrowFactory": "0xE53136D9De56672e8D2665C98653AC7b8A60Dc44",
+  "limitOrderProtocol": "0x111111125421cA6dc452d289314280a0f8842A65",
+  "deployer": "0x8CB80b37cc7193D0f055b1189F25eB903D888D3A",
+  "maker": "0x086153956EF36381bca361575EF7eF67886052A5",
+  "srcToken": "0x4200000000000000000000000000000000000006",
+  "dstToken": "0x0000000000000000000000000000000000000000",
+  "resolver": "0x0000000000000000000000000000000000000000",
+  "srcAmount": 1000000000000000000,
+  "dstAmount": 1000000000000000000,
+  "safetyDeposit": 100000000000000000,
+  "withdrawalSrcTimelock": 300,
+  "publicWithdrawalSrcTimelock": 600,
+  "cancellationSrcTimelock": 900,
+  "publicCancellationSrcTimelock": 1200,
+  "withdrawalDstTimelock": 300,
+  "publicWithdrawalDstTimelock": 600,
+  "cancellationDstTimelock": 900,
+  "secret": "icp_evm_cross_chain_secret_2024",
+  "stages": ["deployMocks", "deployEscrowSrc", "deployEscrowDst"]
+}

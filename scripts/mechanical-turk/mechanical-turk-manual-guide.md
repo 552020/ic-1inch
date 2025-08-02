@@ -15,12 +15,14 @@ Step-by-step instructions for manually testing the Fusion+ Mechanical Turk cross
 **CRITICAL:** This implementation uses an **asymmetric flow** that behaves differently based on swap direction:
 
 ### ICP → ETH Orders (Automatic Locking)
+
 - **Maker locks ICP immediately** during order creation
 - **Automatic token transfer** from maker to escrow canister
 - **Gas efficient** - maker commits upfront, reducing resolver risk
 - **Single transaction** - order creation + token locking combined
 
 ### ETH → ICP Orders (Manual Flow)
+
 - **No automatic locking** during order creation
 - **Taker/resolver handles both sides** of the swap
 - **Traditional flow** - resolver locks both ETH and ICP tokens
@@ -140,7 +142,8 @@ dfx canister call orderbook create_order "(
 )"
 ```
 
-**Expected Result:** 
+**Expected Result:**
+
 - `(variant { Ok = "fusion_1234567890_..." })` (Order ID returned)
 - **🔒 AUTOMATIC TOKEN LOCKING:** The maker's 10 ICP tokens are immediately transferred to escrow
 - **📝 Console Output:** Shows automatic locking message for ICP→ETH order
@@ -168,9 +171,10 @@ dfx canister call test_token_icp icrc1_balance_of "(record { owner = principal \
 dfx canister call escrow list_fusion_escrows '()'
 ```
 
-**Expected Result:** 
+**Expected Result:**
+
 - Order shows status `Pending`, correct amounts, and maker details
-- **🔒 AUTOMATIC LOCKING VERIFIED:** 
+- **🔒 AUTOMATIC LOCKING VERIFIED:**
   - Maker's ICP balance: 0 tokens (transferred to escrow)
   - Escrow's ICP balance: 10 tokens (locked for the order)
   - Escrow list shows funded escrow with order ID
@@ -596,7 +600,8 @@ dfx canister call test_token_icp icrc1_balance_of "(record { owner = principal \
 dfx canister call test_token_icp icrc1_balance_of "(record { owner = principal \"$(dfx canister id escrow)\"; subaccount = null })"
 ```
 
-**Expected Result:** 
+**Expected Result:**
+
 - New order created with ETH → ICP direction
 - **🚫 NO AUTOMATIC LOCKING:** Maker's ICP tokens remain in their account
 - **📝 Asymmetric Flow:** Only ICP→ETH orders trigger automatic locking

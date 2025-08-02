@@ -12,10 +12,10 @@ dfx canister create ic_siwe_provider --network local 2>/dev/null || true
 # Deploy SIWE provider with proper initialization arguments
 dfx deploy ic_siwe_provider --network local --argument "(
     record {
-        domain = \"127.0.0.1\";
-        uri = \"http://127.0.0.1:5173\";
+        domain = \"localhost\";
+        uri = \"http://localhost:5174\";
         salt = \"salt\";
-        chain_id = opt 8453;
+        chain_id = opt 11155111;
         scheme = opt \"http\";
         statement = opt \"Login to the Fusion+ Mechanical Turk demo app\";
         sign_in_expires_in = opt 300000000000; /* 5 minutes */

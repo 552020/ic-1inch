@@ -5,26 +5,33 @@
 
 set -e
 
+# Build canisters to generate their .did files
+echo "📝 Building canisters to generate .did files..."
+cargo build --target wasm32-unknown-unknown --release --package limit_order
+cargo build --target wasm32-unknown-unknown --release --package test_token_icp
+cargo build --target wasm32-unknown-unknown --release --package test_token_eth
+
+
+cargo build --target wasm32-unknown-unknown --release --package orderbook
+cargo build --target wasm32-unknown-unknown --release --package escrow
+
 echo "🔧 Generating DID files and declarations..."
 
 # Generate DID files for each canister
 echo "📝 Generating DID files..."
 generate-did orderbook
 generate-did escrow
-generate-did limit-order
+generate-did limit_order
 generate-did test_token_icp
 generate-did test_token_eth
 
-# Build test tokens to generate their .did files
-echo "📝 Building test tokens to generate .did files..."
-cargo build --target wasm32-unknown-unknown --release --package test_token_icp
-cargo build --target wasm32-unknown-unknown --release --package test_token_eth
+
 
 # Generate TypeScript declarations for Rust canisters only
 echo "📝 Generating TypeScript declarations..."
 dfx generate orderbook
 dfx generate escrow
-dfx generate limit-order
+dfx generate limit_order
 dfx generate ic_siwe_provider
 
 # Generate declarations for test tokens if .did files exist
@@ -51,8 +58,8 @@ fi
 if [ -f "src/escrow/escrow.did" ]; then
     echo "   - src/escrow/escrow.did (Escrow interface)"
 fi
-if [ -f "src/limit-order/limit-order.did" ]; then
-    echo "   - src/limit-order/limit-order.did (Limit order interface)"
+if [ -f "src/limit_order/limit_order.did" ]; then
+    echo "   - src/limit_order/limit_order.did (Limit order interface)"
 fi
 if [ -f "src/test_token_icp/test_token_icp.did" ]; then
     echo "   - src/test_token_icp/test_token_icp.did (Test token ICP interface)"
