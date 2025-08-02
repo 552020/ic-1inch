@@ -10,11 +10,7 @@
       "package": "orderbook",
       "type": "rust"
     },
-    "escrow": {
-      "candid": "src/escrow/escrow.did",
-      "package": "escrow",
-      "type": "rust"
-    },
+
     "frontend": {
       "dependencies": ["limit_order"],
       "source": ["src/frontend/dist"],
@@ -43,9 +39,9 @@
       "package": "fusion_orderbook",
       "type": "rust"
     },
-    "fusion_escrow": {
-      "candid": "src/fusion_escrow/fusion_escrow.did",
-      "package": "fusion_escrow",
+    "escrow_manager": {
+      "candid": "src/escrow_manager/escrow_manager.did",
+      "package": "escrow_manager",
       "type": "rust"
     }
   },

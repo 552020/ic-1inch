@@ -2,7 +2,9 @@
 ///
 /// This module handles all timelock-related calculations, validations, and configurations
 /// for secure HTLC escrow coordination between ICP and EVM chains.
-use crate::types::{EscrowError, TimelockConfig};
+use crate::types::{
+    ConservativeTimelocks, EscrowError, TimelockConfig, TimelockStatus, TimelockValidation,
+};
 
 /// Buffer constants for conservative timelock coordination
 pub mod constants {
@@ -23,30 +25,6 @@ pub mod constants {
 
     /// Additional safety buffer in nanoseconds (5 minutes)
     pub const SAFETY_BUFFER_NS: u64 = 5 * 60 * 1_000_000_000;
-}
-
-/// Structure to hold conservative timelock calculation results
-#[derive(Clone, Debug)]
-pub struct ConservativeTimelocks {
-    /// ICP escrow timelock (full user-specified timelock)
-    pub icp_timelock: u64,
-    /// EVM escrow timelock (earlier to ensure ICP can claim first)
-    pub evm_timelock: u64,
-    /// Buffer duration in minutes
-    pub buffer_minutes: u64,
-    /// Complete timelock configuration
-    pub config: TimelockConfig,
-}
-
-/// Timelock validation result
-#[derive(Clone, Debug)]
-pub struct TimelockValidation {
-    /// Whether the timelock is valid
-    pub is_valid: bool,
-    /// Minimum required timelock
-    pub min_required: u64,
-    /// Validation message
-    pub message: String,
 }
 
 /// Validate timelock duration against minimum requirements
@@ -186,14 +164,6 @@ pub fn calculate_partition_extension(original_timelock: u64, partition_duration:
     original_timelock + (partition_duration / 2)
 }
 
-/// Timelock status for monitoring and debugging
-#[derive(Clone, Debug)]
-pub enum TimelockStatus {
-    Active { remaining: u64 },
-    Expired { overdue: u64 },
-    Invalid { reason: String },
-}
-
 /// Get comprehensive timelock status
 pub fn get_timelock_status(timelock: u64, current_time: u64) -> TimelockStatus {
     if timelock == 0 {
@@ -206,5 +176,3 @@ pub fn get_timelock_status(timelock: u64, current_time: u64) -> TimelockStatus {
         TimelockStatus::Active { remaining: timelock - current_time }
     }
 }
-
-

@@ -217,23 +217,23 @@ test_new_error_types() {
     return 0
 }
 
-# Function to test legacy compatibility
-test_legacy_compatibility() {
-    echo "🔄 Testing legacy compatibility..."
+# Function to test clean MVP approach (no legacy bloat)
+test_clean_mvp_approach() {
+    echo "🧹 Testing clean MVP approach..."
     
-    # Check if legacy create_htlc_escrow function still exists
-    if grep -q "async fn create_htlc_escrow" src/lib.rs; then
-        echo -e "${GREEN}✅ Legacy create_htlc_escrow function maintained${NC}"
+    # Verify no legacy create_htlc_escrow function (clean MVP approach)
+    if ! grep -q "async fn create_htlc_escrow" src/lib.rs; then
+        echo -e "${GREEN}✅ No legacy create_htlc_escrow function (clean MVP)${NC}"
     else
-        echo -e "${RED}❌ Legacy create_htlc_escrow function not found${NC}"
+        echo -e "${RED}❌ Legacy create_htlc_escrow function still present${NC}"
         return 1
     fi
     
-    # Check if legacy function redirects to new implementation
-    if grep -q "create_icp_escrow(" src/lib.rs | grep -q "await"; then
-        echo -e "${GREEN}✅ Legacy function redirects to new implementation${NC}"
+    # Verify only modern create_icp_escrow function exists
+    if grep -q "async fn create_icp_escrow" src/lib.rs; then
+        echo -e "${GREEN}✅ Modern create_icp_escrow function present${NC}"
     else
-        echo -e "${RED}❌ Legacy function redirect not found${NC}"
+        echo -e "${RED}❌ Modern create_icp_escrow function not found${NC}"
         return 1
     fi
     
@@ -303,7 +303,7 @@ run_test "ICP Escrow Creation Function" "test_icp_escrow_creation_function"
 run_test "Input Validation" "test_input_validation"
 run_test "Conservative Timelock Calculation" "test_conservative_timelock_calculation"
 run_test "New Error Types" "test_new_error_types"
-run_test "Legacy Compatibility" "test_legacy_compatibility"
+run_test "Clean MVP Approach" "test_clean_mvp_approach"
 run_test "Timelock Configuration" "test_timelock_configuration"
 run_test "Escrow Address Generation" "test_escrow_address_generation"
 run_test "Event Logging" "test_event_logging"

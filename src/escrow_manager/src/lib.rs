@@ -5,8 +5,8 @@ mod types;
 
 use candid::Principal;
 // use chain_fusion::{ChainFusionConfig, ChainFusionManager, EVMEscrowParams}; // TODO: Enable in Task 5
-use timelock::ConservativeTimelocks;
 use types::{
+    ConservativeTimelocks,
     CoordinationState,
     CrossChainEscrow,
     EscrowError,
@@ -100,44 +100,7 @@ async fn create_icp_escrow(
     Ok(order_hash)
 }
 
-/// Legacy HTLC escrow creation for backward compatibility
-#[ic_cdk::update]
-async fn create_htlc_escrow(
-    order_hash: String,
-    hashlock: String,
-    maker: String,
-    taker: String,
-    token: String,
-    amount: u64,
-    safety_deposit: u64,
-    timelock: u64,
-    src_chain_id: u64,
-    dst_chain_id: u64,
-    src_token: String,
-    dst_token: String,
-    src_amount: u64,
-    dst_amount: u64,
-    _escrow_type: EscrowType,
-) -> Result<String, EscrowError> {
-    // Redirect to new phased approach
-    create_icp_escrow(
-        order_hash,
-        hashlock,
-        maker,
-        taker,
-        token,
-        amount,
-        safety_deposit,
-        timelock,
-        src_chain_id,
-        dst_chain_id,
-        src_token,
-        dst_token,
-        src_amount,
-        dst_amount,
-    )
-    .await
-}
+
 
 /// Get HTLC escrow status - Used by: Frontend/Users
 #[ic_cdk::query]

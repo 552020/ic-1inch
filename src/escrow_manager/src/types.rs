@@ -127,6 +127,38 @@ pub struct TimelockConfig {
     pub conservative_buffer: u32, // 3-minute buffer (180 seconds)
 }
 
+/// Conservative timelock calculation results
+#[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
+pub struct ConservativeTimelocks {
+    /// ICP escrow timelock (full user-specified timelock)
+    pub icp_timelock: u64,
+    /// EVM escrow timelock (earlier to ensure ICP can claim first)
+    pub evm_timelock: u64,
+    /// Buffer duration in minutes
+    pub buffer_minutes: u64,
+    /// Complete timelock configuration
+    pub config: TimelockConfig,
+}
+
+/// Timelock validation result
+#[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
+pub struct TimelockValidation {
+    /// Whether the timelock is valid
+    pub is_valid: bool,
+    /// Minimum required timelock
+    pub min_required: u64,
+    /// Validation message
+    pub message: String,
+}
+
+/// Timelock status for monitoring and debugging
+#[derive(Clone, Debug, CandidType, Deserialize, Serialize, PartialEq)]
+pub enum TimelockStatus {
+    Active { remaining: u64 },
+    Expired { overdue: u64 },
+    Invalid { reason: String },
+}
+
 impl TimelockConfig {
     pub fn default_config() -> Self {
         Self {

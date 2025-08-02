@@ -79,6 +79,34 @@ impl ChainFusionManager {
         }
     }
 
+    /// Derive deterministic EVM address using threshold ECDSA
+    pub fn derive_deterministic_evm_address(&self, order_hash: &str) -> Result<String, Error> {
+        // For MVP, create deterministic address from order hash
+        // In production, this would use threshold ECDSA to derive actual EVM address
+        
+        if order_hash.len() < 10 {
+            return Err(Error::InvalidData("Order hash too short".to_string()));
+        }
+
+        // Create deterministic address from order hash (last 40 chars for address)
+        let address_suffix = if order_hash.len() >= 40 {
+            &order_hash[order_hash.len() - 40..]
+        } else {
+            // Pad with zeros if too short
+            &format!("{:0>40}", order_hash)
+        };
+        
+        let evm_address = format!("0x{}", address_suffix);
+
+        ic_cdk::println!(
+            "Derived deterministic EVM address: {} from order hash: {}",
+            evm_address,
+            order_hash
+        );
+
+        Ok(evm_address)
+    }
+
     /// Check threshold ECDSA health by attempting a test signature
     pub async fn check_threshold_ecdsa_health(&self) -> Result<ThresholdECDSAHealth, Error> {
         ic_cdk::println!("Checking threshold ECDSA health...");
