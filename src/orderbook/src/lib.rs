@@ -13,6 +13,91 @@ fn create_fusion_order_placeholder() -> Result<String, FusionError> {
     Err(FusionError::NotImplemented)
 }
 
+/// Create a new fusion order with 1inch LOP compatibility (Enhanced)
+#[ic_cdk::update]
+async fn create_fusion_order(
+    // 1inch LOP Order Parameters
+    salt: String,
+    maker_asset: String,
+    taker_asset: String,
+    making_amount: u64,
+    taking_amount: u64,
+    maker_traits: String,
+
+    // Cross-chain parameters
+    hashlock: String, // Secret hash for atomic swap
+    expiration: u64,
+
+    // Optional EIP-712 signature for ETH→ICP orders
+    eip712_signature: Option<types::EIP712Signature>,
+) -> Result<String, FusionError> {
+    let caller = ic_cdk::caller();
+    let current_time = ic_cdk::api::time();
+
+    // Validate 1inch LOP parameters
+    validate_lop_parameters(
+        &salt,
+        &maker_asset,
+        &taker_asset,
+        making_amount,
+        taking_amount,
+        &maker_traits,
+    )?;
+
+    // Validate hashlock format (should be 64 hex characters)
+    if hashlock.len() != 64 || !hashlock.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(FusionError::InvalidSecretHash);
+    }
+
+    // Validate expiration is in the future (at least 1 hour)
+    if expiration <= current_time + 3600_000_000_000 {
+        return Err(FusionError::InvalidExpiration);
+    }
+
+    // Generate unique order ID
+    let order_id = generate_order_id();
+
+    // Determine order direction based on assets
+    let is_eth_to_icp = is_eth_asset(&maker_asset);
+
+    // Validate EIP-712 signature requirement for ETH→ICP orders
+    if is_eth_to_icp && eip712_signature.is_none() {
+        return Err(FusionError::InvalidEIP712Signature);
+    }
+
+    // Create the fusion order with 1inch LOP compatibility
+    let mut order = types::FusionOrder::new(
+        order_id.clone(),
+        caller.to_text(), // Use caller as maker address for ICP side
+        caller,
+        salt,
+        maker_asset,
+        taker_asset,
+        making_amount,
+        taking_amount,
+        hashlock,
+    );
+
+    // Set additional fields
+    order.created_at = current_time;
+    order.expires_at = expiration;
+    order.maker_traits = maker_traits;
+    order.eip712_signature = eip712_signature;
+
+    // Store the order
+    memory::store_fusion_order(order.clone())?;
+
+    ic_cdk::println!(
+        "✅ Created 1inch LOP compatible fusion order {} for maker {} ({}→{})",
+        order_id,
+        caller.to_text(),
+        order.maker_asset,
+        order.taker_asset
+    );
+
+    Ok(order_id)
+}
+
 /// Create a new fusion order for cross-chain swaps (Legacy function for backward compatibility)
 #[ic_cdk::update]
 async fn create_order(
@@ -24,64 +109,26 @@ async fn create_order(
     expiration: u64,
     secret_hash: String, // Hashlock for atomic swap
 ) -> Result<String, FusionError> {
-    let caller = ic_cdk::caller();
-    let current_time = ic_cdk::api::time();
+    // Convert legacy parameters to 1inch LOP format
+    let salt = format!("{}", ic_cdk::api::time()); // Use timestamp as salt
+    let maker_asset = token_to_address(&from_token);
+    let taker_asset = token_to_address(&to_token);
+    let maker_traits =
+        "0x0000000000000000000000000000000000000000000000000000000000000000".to_string(); // Default traits
 
-    // Validate amounts
-    if from_amount == 0 || to_amount == 0 {
-        return Err(FusionError::InvalidAmount);
-    }
-
-    // Validate expiration is in the future (at least 1 hour)
-    if expiration <= current_time + 3600_000_000_000 {
-        return Err(FusionError::InvalidExpiration);
-    }
-
-    // Validate secret hash format (should be 64 hex characters)
-    if secret_hash.len() != 64 || !secret_hash.chars().all(|c| c.is_ascii_hexdigit()) {
-        return Err(FusionError::InvalidSecretHash);
-    }
-
-    // Generate unique order ID
-    let order_id = generate_order_id();
-
-    // Check if this is an ICP → ETH order (for automatic locking)
-    let _is_icp_to_eth = from_token == Token::ICP && to_token == Token::ETH;
-
-    // Create the fusion order with enhanced data using new constructor
-    let mut order = FusionOrder::new(
-        order_id.clone(),
-        maker_eth_address.clone(),
-        caller,
-        format!("{}", current_time), // Use timestamp as salt for now
-        format!("0x{:040x}", if from_token == Token::ICP { 1 } else { 0 }), // Placeholder maker_asset
-        format!("0x{:040x}", if to_token == Token::ETH { 1 } else { 0 }), // Placeholder taker_asset
+    // Call the enhanced function
+    create_fusion_order(
+        salt,
+        maker_asset,
+        taker_asset,
         from_amount,
         to_amount,
-        secret_hash.clone(),
-    );
-
-    // Set additional fields
-    order.created_at = current_time;
-    order.expires_at = expiration;
-    order.from_token = from_token;
-    order.to_token = to_token;
-
-    // Store the order
-    memory::store_fusion_order(order.clone())?;
-
-    // Note: Escrow creation is now handled by the escrow factory
-    // The orderbook will be notified via notify_escrow_created when escrows are ready
-
-    ic_cdk::println!(
-        "✅ Created fusion order {} for maker {} ({:?} → {:?})",
-        order_id,
-        maker_eth_address,
-        from_token,
-        to_token
-    );
-
-    Ok(order_id)
+        maker_traits,
+        secret_hash,
+        expiration,
+        None, // No EIP-712 signature for legacy orders
+    )
+    .await
 }
 
 /// Accept a fusion order as a resolver - Used by: Resolvers
@@ -312,20 +359,28 @@ fn get_order_statistics() -> types::OrderStatistics {
     }
 }
 
-/// Register or update cross-chain identity - Used by: Users
+/// Register cross-chain identity with both ETH address and ICP principal - Used by: Frontend after SIWE
 #[ic_cdk::update]
 fn register_cross_chain_identity(
     eth_address: String,
+    icp_principal: Principal,
     role: types::UserRole,
 ) -> Result<(), types::FusionError> {
-    let caller = ic_cdk::caller();
+    // Validate ETH address format
+    if !is_valid_address(&eth_address) {
+        return Err(types::FusionError::TokenAddressInvalid);
+    }
 
     let identity =
-        types::CrossChainIdentity { eth_address: eth_address.clone(), icp_principal: caller, role };
+        types::CrossChainIdentity { eth_address: eth_address.clone(), icp_principal, role };
 
     memory::store_cross_chain_identity(identity)?;
 
-    ic_cdk::println!("Registered cross-chain identity: {} -> {}", eth_address, caller.to_text());
+    ic_cdk::println!(
+        "Registered cross-chain identity: {} <-> {}",
+        eth_address,
+        icp_principal.to_text()
+    );
 
     Ok(())
 }
@@ -347,26 +402,24 @@ fn get_cross_chain_identity_by_principal(
         .find(|identity| identity.icp_principal == principal)
 }
 
-/// Derive ICP principal from ETH address using SIWE provider - Used by: Frontend/Users
-#[ic_cdk::update]
-async fn derive_principal_from_eth_address(
-    eth_address: String,
-) -> Result<Principal, types::FusionError> {
-    // Note: In practice, the SIWE provider canister ID should be retrieved from environment
-    // For now, using a placeholder - this would be configured during deployment
-    let siwe_provider_id = Principal::from_text("rdmx6-jaaaa-aaaah-qcaiq-cai")
-        .map_err(|_| types::FusionError::SystemError)?;
-
-    let result: Result<(Result<Vec<u8>, String>,), _> =
-        ic_cdk::call(siwe_provider_id, "get_principal", (eth_address,)).await;
-
-    match result {
-        Ok((Ok(principal_bytes),)) => {
-            Principal::try_from_slice(&principal_bytes).map_err(|_| types::FusionError::SystemError)
-        }
-        Ok((Err(_),)) => Err(types::FusionError::OrderNotFound),
-        Err(_) => Err(types::FusionError::SystemError),
+/// Get ICP principal from stored identity mapping - Used by: Frontend/Users
+#[ic_cdk::query]
+fn get_principal_from_eth_address(eth_address: String) -> Result<Principal, types::FusionError> {
+    match memory::get_cross_chain_identity(&eth_address) {
+        Ok(identity) => Ok(identity.icp_principal),
+        Err(_) => Err(types::FusionError::OrderNotFound),
     }
+}
+
+/// Validate and store identity pair from frontend/SIWE - Used by: Frontend after SIWE authentication
+#[ic_cdk::update]
+fn store_siwe_identity(
+    eth_address: String,
+    icp_principal: Principal,
+    role: types::UserRole,
+) -> Result<(), types::FusionError> {
+    // This is the same as register_cross_chain_identity but with clearer naming for SIWE flow
+    register_cross_chain_identity(eth_address, icp_principal, role)
 }
 
 /// Generate a unique order ID
@@ -376,229 +429,77 @@ fn generate_order_id() -> String {
     format!("fusion_{}_{}", timestamp, caller.to_text())
 }
 
-// ============================================================================
-// DUTCH AUCTION SYSTEM (Fusion+ Whitepaper 2.3)
-// ============================================================================
-
-/// Get current price for a Dutch auction order
-#[ic_cdk::query]
-fn get_current_price(order_id: String) -> Result<u64, FusionError> {
-    let order = memory::get_fusion_order(&order_id)?;
-    Ok(order.calculate_current_price())
-}
-
-/// Check if order is profitable for resolver at current price
-#[ic_cdk::query]
-fn is_order_profitable(order_id: String, resolver_fee: u64) -> Result<bool, FusionError> {
-    let order = memory::get_fusion_order(&order_id)?;
-    Ok(order.is_profitable_for_resolver(resolver_fee))
-}
-
-/// Get all orders currently in Dutch auction phase
-#[ic_cdk::query]
-fn get_orders_in_auction() -> Vec<FusionOrder> {
-    memory::get_all_fusion_orders()
-        .into_iter()
-        .filter(|order| order.fusion_state == types::FusionState::AnnouncementPhase)
-        .collect()
-}
-
-/// Get orders within a specific price range
-#[ic_cdk::query]
-fn get_orders_by_price_range(min_price: u64, max_price: u64) -> Vec<FusionOrder> {
-    memory::get_all_fusion_orders()
-        .into_iter()
-        .filter(|order| {
-            let current_price = order.calculate_current_price();
-            current_price >= min_price && current_price <= max_price
-        })
-        .collect()
-}
-
-/// Update price curve for an order (admin function)
-#[ic_cdk::update]
-fn update_price_curve(order_id: String, new_curve: types::PriceCurve) -> Result<(), FusionError> {
-    let mut order = memory::get_fusion_order(&order_id)?;
-
-    // Only allow updates in announcement phase
-    if order.fusion_state != types::FusionState::AnnouncementPhase {
-        return Err(FusionError::InvalidStateTransition);
-    }
-
-    order.price_curve = new_curve;
-    memory::store_fusion_order(order)?;
-
-    Ok(())
-}
-
-/// Get price curve for an order
-#[ic_cdk::query]
-fn get_price_curve(order_id: String) -> Result<types::PriceCurve, FusionError> {
-    let order = memory::get_fusion_order(&order_id)?;
-    Ok(order.price_curve.clone())
-}
-
-// ============================================================================
-// PARTIAL FILL SYSTEM (Fusion+ Whitepaper 2.5)
-// ============================================================================
-
-/// Partially fill an order
-#[ic_cdk::update]
-async fn partially_fill_order(
-    order_id: String,
-    resolver_address: String,
-    fill_amount: u64,
-) -> Result<String, FusionError> {
-    let mut order = memory::get_fusion_order(&order_id)?;
-
-    // Verify order supports partial fills
-    if !order.supports_partial_fills() {
-        return Err(FusionError::PartialFillsNotSupported);
-    }
-
-    // Verify fill amount is valid
-    if fill_amount == 0 || fill_amount > order.get_remaining_amount() {
-        return Err(FusionError::InvalidFillAmount);
-    }
-
-    // Calculate which secret to use based on fill percentage
-    let current_fill_percentage = if let Some(ref partial_data) = order.partial_fill_data {
-        (partial_data.filled_amount * 100) / order.making_amount
-    } else {
-        0
-    };
-
-    let required_secret_index = (current_fill_percentage * order.secret_hashes.len() as u64) / 100;
-
-    // Create partial fill record
-    let partial_fill = types::PartialFill {
-        resolver_address: resolver_address.clone(),
-        fill_amount,
-        secret_index: required_secret_index as u32,
-        timestamp: ic_cdk::api::time(),
-    };
-
-    // Add partial fill to order
-    order.add_partial_fill(partial_fill)?;
-
-    // Update order status if fully filled
-    if order.is_fully_filled() {
-        order.status = OrderStatus::Completed;
-        order.fusion_state = types::FusionState::Completed;
-        order.completed_at = Some(ic_cdk::api::time());
-    }
-
-    memory::store_fusion_order(order)?;
-
-    let fill_id = format!("partial_fill_{}_{}", order_id, ic_cdk::api::time());
-
-    ic_cdk::println!(
-        "📊 Partial fill {} created for order {}: {} tokens by {}",
-        fill_id,
-        order_id,
-        fill_amount,
-        resolver_address
-    );
-
-    Ok(fill_id)
-}
-
-/// Reveal multiple secrets for partial fills
-#[ic_cdk::update]
-async fn reveal_multiple_secrets(
-    order_id: String,
-    secrets: Vec<String>,
+/// Validate 1inch LOP parameters
+fn validate_lop_parameters(
+    salt: &str,
+    maker_asset: &str,
+    taker_asset: &str,
+    making_amount: u64,
+    taking_amount: u64,
+    maker_traits: &str,
 ) -> Result<(), FusionError> {
-    let mut order = memory::get_fusion_order(&order_id)?;
-
-    // Verify order is in correct state
-    if order.fusion_state != types::FusionState::DepositPhase {
-        return Err(FusionError::InvalidStateTransition);
+    // Validate salt (should be non-empty)
+    if salt.is_empty() {
+        return Err(FusionError::InvalidSalt);
     }
 
-    // Verify secrets match stored hashes
-    for (i, secret) in secrets.iter().enumerate() {
-        if let Some(expected_hash) = order.get_secret_hash(i) {
-            let computed_hash = compute_secret_hash(secret);
-            if &computed_hash != expected_hash {
-                return Err(FusionError::InvalidSecret);
-            }
-        }
+    // Validate amounts (should be non-zero)
+    if making_amount == 0 || taking_amount == 0 {
+        return Err(FusionError::InvalidAmount);
     }
 
-    // Update order state
-    order.fusion_state = types::FusionState::WithdrawalPhase;
-    memory::store_fusion_order(order)?;
+    // Validate asset addresses (should be valid hex addresses)
+    if !is_valid_address(maker_asset) || !is_valid_address(taker_asset) {
+        return Err(FusionError::TokenAddressInvalid);
+    }
 
-    ic_cdk::println!("🔓 Revealed {} secrets for order {}", secrets.len(), order_id);
+    // Validate maker traits (should be valid hex string)
+    if !is_valid_hex_string(maker_traits) {
+        return Err(FusionError::InvalidMakerTraits);
+    }
 
     Ok(())
 }
 
-/// Submit secret for a specific partial fill
-#[ic_cdk::update]
-async fn submit_secret_for_partial_fill(
-    order_id: String,
-    secret: String,
-    secret_index: u32,
-) -> Result<(), FusionError> {
-    let order = memory::get_fusion_order(&order_id)?;
-
-    // Verify secret matches the expected hash at the given index
-    if let Some(expected_hash) = order.get_secret_hash(secret_index as usize) {
-        let computed_hash = compute_secret_hash(&secret);
-        if &computed_hash != expected_hash {
-            return Err(FusionError::InvalidSecret);
-        }
-    } else {
-        return Err(FusionError::InvalidSecret);
-    }
-
-    ic_cdk::println!("🔑 Secret submitted for partial fill {} of order {}", secret_index, order_id);
-
-    Ok(())
+/// Check if an asset address represents ETH
+fn is_eth_asset(asset_address: &str) -> bool {
+    // ETH is typically represented as 0x0000000000000000000000000000000000000000
+    // or specific ETH token addresses
+    asset_address.to_lowercase() == "0x0000000000000000000000000000000000000000"
+        || asset_address.to_lowercase().contains("eth")
 }
+
+/// Convert legacy Token enum to address string
+fn token_to_address(token: &Token) -> String {
+    match token {
+        Token::ICP => "0x0000000000000000000000000000000000000001".to_string(), // Placeholder ICP address
+        Token::ETH => "0x0000000000000000000000000000000000000000".to_string(), // ETH address
+    }
+}
+
+/// Validate if a string is a valid Ethereum address
+fn is_valid_address(address: &str) -> bool {
+    // Basic validation: should start with 0x and be 42 characters long
+    address.len() == 42
+        && address.starts_with("0x")
+        && address[2..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Validate if a string is a valid hex string
+fn is_valid_hex_string(hex_str: &str) -> bool {
+    // Should start with 0x and contain only hex characters
+    hex_str.starts_with("0x") && hex_str[2..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+// Removed: Complex Dutch auction system for MVP simplicity
+
+// Removed: Complex partial fill system for MVP simplicity
 
 // ============================================================================
 // ESCROW FACTORY NOTIFICATION SYSTEM
 // ============================================================================
 
-/// Called by escrow factory to notify orderbook of escrow creation
-#[ic_cdk::update]
-fn notify_escrow_created(
-    order_id: String,
-    escrow_address: String,
-    escrow_type: types::EscrowType,
-) -> Result<(), FusionError> {
-    let mut order = memory::get_fusion_order(&order_id)?;
-
-    // Update order with escrow address
-    match escrow_type {
-        types::EscrowType::Source => {
-            order.escrow_src_address = Some(escrow_address.clone());
-        }
-        types::EscrowType::Destination => {
-            order.escrow_dst_address = Some(escrow_address.clone());
-        }
-    }
-
-    // Update fusion state if both escrows are created
-    if order.escrow_src_address.is_some() && order.escrow_dst_address.is_some() {
-        order.fusion_state = types::FusionState::DepositPhase;
-    }
-
-    memory::store_fusion_order(order)?;
-
-    ic_cdk::println!(
-        "📬 Escrow {:?} created for order {}: {}",
-        escrow_type,
-        order_id,
-        escrow_address
-    );
-
-    Ok(())
-}
-
+// Simplified escrow notification system for MVP
 /// Called by escrow factory to notify orderbook of escrow completion
 #[ic_cdk::update]
 fn notify_escrow_completed(order_id: String, escrow_address: String) -> Result<(), FusionError> {
@@ -606,7 +507,6 @@ fn notify_escrow_completed(order_id: String, escrow_address: String) -> Result<(
 
     // Update order status to completed
     order.status = OrderStatus::Completed;
-    order.fusion_state = types::FusionState::Completed;
     order.completed_at = Some(ic_cdk::api::time());
 
     memory::store_fusion_order(order)?;
@@ -623,7 +523,6 @@ fn notify_escrow_cancelled(order_id: String, escrow_address: String) -> Result<(
 
     // Update order status to cancelled
     order.status = OrderStatus::Cancelled;
-    order.fusion_state = types::FusionState::Cancelled;
 
     memory::store_fusion_order(order)?;
 
