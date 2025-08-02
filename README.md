@@ -181,6 +181,66 @@ sequenceDiagram
 
 ---
 
+## Repository Structure
+
+This project is organized as a monorepo with multiple components:
+
+### Core Components
+
+- **`src/`** - Internet Computer canisters and frontend
+  - `escrow/` - HTLC escrow canister for ICP
+  - `limit-order/` - Limit order protocol implementation
+  - `orderbook/` - Order book management
+  - `frontend/` - React-based user interface
+  - `test_token_eth/` & `test_token_icp/` - Test token canisters
+
+### Ethereum Integration
+
+- **`eth/`** - Foundry-based Ethereum contracts (git submodule)
+
+  - Cross-chain swap contracts
+  - Integration with 1inch Fusion+ protocol
+  - Test contracts and deployment scripts
+  - **Submodule URL**: `git@github.com:552020/cross-chain-swap.git`
+
+- **`evm/`** - Hardhat-based Ethereum development
+  - Fusion escrow contracts
+  - Test tokens and deployment scripts
+  - TypeScript integration
+
+### Development Tools
+
+- **`scripts/`** - Deployment and testing automation
+  - `mechanical-turk/` - Cross-chain testing scripts
+  - `limit-orders/` - Order protocol testing
+  - `relayer/` & `resolver/` - Infrastructure scripts
+
+### Additional Projects
+
+- **`secretus/`** - Related blockchain projects and examples
+
+### Working with Submodules
+
+To clone this repository with all submodules:
+
+```bash
+git clone --recursive <repository-url>
+```
+
+To update the `eth` submodule to the latest version:
+
+```bash
+git submodule update --remote eth
+```
+
+To initialize submodules after cloning:
+
+```bash
+git submodule update --init --recursive
+```
+
+---
+
 ## Testing & Demo Instructions
 
 There is a script test folder with some testing (that will change). Eventually you could find a README in the folder for a correct execution.
