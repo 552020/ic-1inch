@@ -183,7 +183,7 @@ should_stop "1.5"
 ## Step 1.6: Verify Both Orders are Active
 echo "1.6 Verifying both orders..."
 
-ACTIVE_ORDERS_FINAL=$(dfx canister call backend get_active_orders '()')
+ACTIVE_ORDERS_FINAL=$(dfx canister call limit-order get_active_orders '()')
 if [[ $ACTIVE_ORDERS_FINAL == *"id = $ORDER_ID"* ]] && [[ $ACTIVE_ORDERS_FINAL == *"id = $ORDER2_ID"* ]]; then
     echo "   ✅ Both orders active"
 else
@@ -231,7 +231,7 @@ should_stop "2.2"
 ## Step 2.3: Discover Available Orders
 echo "2.3 Discovering orders..."
 
-TAKER_ORDERS=$(dfx canister call backend get_active_orders '()')
+TAKER_ORDERS=$(dfx canister call limit-order get_active_orders '()')
 if [[ $TAKER_ORDERS == *"id = $ORDER_ID"* ]]; then
     echo "   ✅ Taker can see order $ORDER_ID"
 else
@@ -256,7 +256,7 @@ should_stop "2.4"
 ## Step 2.5: Fill the Order
 echo "2.5 Filling order $ORDER_ID..."
 
-FILL_RESPONSE=$(dfx canister call backend fill_order "($ORDER_ID:nat64)")
+FILL_RESPONSE=$(dfx canister call limit-order fill_order "($ORDER_ID:nat64)")
 if [[ $FILL_RESPONSE == *"Ok"* ]]; then
     echo "   ✅ Order $ORDER_ID filled"
 else
@@ -285,7 +285,7 @@ echo ""
 echo "📋 Final Verification"
 
 ## Check if order was actually filled
-FINAL_ACTIVE_ORDERS=$(dfx canister call backend get_active_orders '()')
+FINAL_ACTIVE_ORDERS=$(dfx canister call limit-order get_active_orders '()')
 if [[ $FINAL_ACTIVE_ORDERS != *"id = $ORDER_ID"* ]]; then
     echo "   ✅ Order $ORDER_ID filled successfully"
 else
@@ -293,7 +293,7 @@ else
 fi
 
 ## Get system statistics
-STATS=$(dfx canister call backend get_system_stats '()')
+STATS=$(dfx canister call limit-order get_system_stats '()')
 echo "   ✅ System stats: $STATS"
 
 echo ""

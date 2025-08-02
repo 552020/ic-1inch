@@ -1,10 +1,10 @@
 #!/bin/bash
-# run-all-tests.sh - Run complete test suite
+# run-all-tests.sh - Run complete LOP test suite
 
 set -e  # Exit on any error
 
-echo "🧪 Running complete IC-1inch test suite..."
-echo "🔄 HTLC Escrows + Limit Order Protocol"
+echo "🧪 Running complete LOP test suite..."
+echo "🔄 Limit Order Protocol"
 echo "========================================"
 
 # Colors for output
@@ -27,7 +27,7 @@ print_status() {
 run_test() {
     echo -e "\n${YELLOW}Running: $1${NC}"
     echo "----------------------------------------"
-    if ./scripts/$1; then
+    if ./scripts/limit-orders/$1; then
         print_status 0 "$1 completed successfully"
     else
         print_status 1 "$1 failed"
@@ -55,51 +55,53 @@ if ! dfx ping > /dev/null 2>&1; then
 fi
 echo -e "${GREEN}✅ dfx is running${NC}"
 
-echo "🚀 Starting IC-1inch test suite..."
+echo "🚀 Starting LOP test suite..."
 echo "📋 Test environment: Local network"
-echo "📋 Components: HTLC Escrows + Limit Order Protocol"
+echo "📋 Components: Limit Order Protocol"
 echo "📋 Date: $(date)"
 
-# Phase 1: Setup
-echo -e "\n${YELLOW}Phase 1: Environment Setup${NC}"
-run_test "setup-testing.sh"
-
-# Phase 2: Basic Tests
-echo -e "\n${YELLOW}Phase 2: Basic Functionality Tests${NC}"
+# Phase 1: Basic Tests
+echo -e "\n${YELLOW}Phase 1: Basic Functionality Tests${NC}"
 run_test "test-basic.sh"
 
-# Phase 3: Core Logic Tests
-echo -e "\n${YELLOW}Phase 3: Core Logic Tests${NC}"
-run_test "test-escrow-lifecycle.sh"
+# Phase 2: Order Creation Tests
+echo -e "\n${YELLOW}Phase 2: Order Creation Tests${NC}"
+run_test "test-order-creation.sh"
 
-# Phase 4: Error Handling Tests
-echo -e "\n${YELLOW}Phase 4: Error Handling Tests${NC}"
-run_test "test-error-scenarios.sh"
+# Phase 3: Order Filling Tests
+echo -e "\n${YELLOW}Phase 3: Order Filling Tests${NC}"
+run_test "test-order-filling.sh"
 
-# Phase 5: Limit Order Protocol Tests
-echo -e "\n${YELLOW}Phase 5: Limit Order Protocol Tests${NC}"
-run_test "test-limit-orders.sh"
-run_test "test-limit-order-errors.sh"
+# Phase 4: Order Cancellation Tests
+echo -e "\n${YELLOW}Phase 4: Order Cancellation Tests${NC}"
+run_test "test-order-cancellation.sh"
+
+# Phase 5: Manual Tests (if available)
+echo -e "\n${YELLOW}Phase 5: Manual Tests${NC}"
+if [ -f "scripts/limit-orders/test-limit-orders-manual.sh" ]; then
+    run_test "test-limit-orders-manual.sh"
+else
+    echo -e "${YELLOW}⚠️  Manual test script not found, skipping...${NC}"
+fi
 
 # Final Summary
 echo -e "\n${YELLOW}========================================"
-echo "🎉 Test Suite Summary"
+echo "🎉 LOP Test Suite Summary"
 echo "========================================"
 echo -e "${NC}"
 
 echo "📊 Test Results:"
-echo "  ✅ Environment setup"
 echo "  ✅ Basic functionality"
-echo "  ✅ Escrow lifecycle"
-echo "  ✅ Error handling"
-echo "  ✅ Limit order lifecycle"
-echo "  ✅ Limit order error scenarios"
+echo "  ✅ Order creation"
+echo "  ✅ Order filling"
+echo "  ✅ Order cancellation"
+echo "  ✅ Manual testing (if available)"
 
-echo -e "\n${GREEN}🎯 All tests completed successfully!${NC}"
+echo -e "\n${GREEN}🎯 All LOP tests completed successfully!${NC}"
 echo -e "${YELLOW}📋 Next steps:${NC}"
 echo "  1. Review test output for any warnings"
-echo "  2. Implement limit order core functions (A4, A5, A6)"
+echo "  2. Test with real ICRC-1 tokens"
 echo "  3. Deploy to testnet for integration testing"
-echo "  4. Add ICRC-1 token transfers and ChainFusion+ features"
+echo "  4. Integrate with escrow_manager for cross-chain swaps"
 
-echo -e "\n${GREEN}🚀 IC-1inch platform is ready for MVP development!${NC}" 
+echo -e "\n${GREEN}🚀 LOP is ready for MVP development!${NC}" 
