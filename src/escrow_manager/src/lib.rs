@@ -1,21 +1,29 @@
 mod memory;
 mod types;
 
-use candid::{Nat, Principal};
-use ic_cdk::call;
-use icrc_ledger_types::icrc1::account::Account;
-use icrc_ledger_types::icrc1::transfer::{TransferArg, TransferError};
-use types::{EscrowError, EscrowStatus, FusionEscrow, Token};
+use candid::Principal;
+use types::{EscrowError, EscrowStatus, HTLCEscrow, CrossChainEscrow, Token, CoordinationState, EscrowType, TimelockConfig};
 
-/// Lock ICP tokens for a cross-chain swap - Used by: Makers
+/// Create HTLC escrow for cross-chain swap - Used by: Makers
 #[ic_cdk::update]
-async fn lock_icp_for_swap(
-    order_id: String,
+async fn create_htlc_escrow(
+    order_hash: String,
+    hashlock: String,
+    maker: String,
+    taker: String,
+    token: String,
     amount: u64,
-    resolver: Principal,
+    safety_deposit: u64,
     timelock: u64,
+    src_chain_id: u64,
+    dst_chain_id: u64,
+    src_token: String,
+    dst_token: String,
+    src_amount: u64,
+    dst_amount: u64,
+    escrow_type: EscrowType,
 ) -> Result<String, EscrowError> {
-    let caller = ic_cdk::caller();
+    let _caller = ic_cdk::caller();
     let current_time = ic_cdk::api::time();
 
     // Validate timelock is in the future
@@ -23,304 +31,101 @@ async fn lock_icp_for_swap(
         return Err(EscrowError::TimelockExpired);
     }
 
-    // Generate escrow ID
-    let escrow_id = generate_escrow_id(&order_id);
-
-    // Create escrow record
-    let escrow = FusionEscrow {
-        id: escrow_id.clone(),
-        order_id: order_id.clone(),
-        token: Token::ICP,
+    // Create HTLC escrow record
+    let escrow = HTLCEscrow {
+        order_hash: order_hash.clone(),
+        hashlock,
+        maker,
+        taker,
+        token,
         amount,
-        locked_by: caller,
-        resolver,
+        safety_deposit,
         timelock,
-        eth_receipt: None,
-        locked_at: current_time,
+        src_chain_id,
+        dst_chain_id,
+        src_token,
+        dst_token,
+        src_amount,
+        dst_amount,
+        escrow_type: escrow_type.clone(),
         status: EscrowStatus::Created,
+        address: format!("htlc_{}", order_hash),
+        timelock_config: TimelockConfig::default_config(),
+        threshold_ecdsa_key_id: None,
+        chain_health_status: None,
+        partial_fill_info: None,
+        events: Vec::new(),
+        created_at: current_time,
+        updated_at: current_time,
     };
 
     // Store escrow
-    memory::store_fusion_escrow(escrow)?;
-
-    // Get test token canister for ICP
-    let token_canister = get_test_token_canister(&Token::ICP)?;
-
-    // Transfer tokens from maker to escrow canister
-    transfer_tokens_to_escrow(token_canister, caller, amount).await?;
-
-    // Mark escrow as funded after successful transfer
-    fund_escrow(escrow_id.clone())?;
+    memory::store_htlc_escrow(escrow)?;
 
     ic_cdk::println!(
-        "🔒 Locked {} ICP tokens for fusion swap {} (order: {})",
-        amount,
-        escrow_id,
+        "🔒 Created HTLC escrow for order {} (type: {:?})",
+        order_hash,
+        escrow_type.clone()
+    );
+
+    Ok(order_hash)
+}
+
+/// Get HTLC escrow status - Used by: Frontend/Users
+#[ic_cdk::query]
+fn get_htlc_escrow_status(order_hash: String) -> Option<HTLCEscrow> {
+    memory::get_htlc_escrow(&order_hash).ok()
+}
+
+/// List all HTLC escrows for debugging - Used by: Developers
+#[ic_cdk::query]
+fn list_htlc_escrows() -> Vec<HTLCEscrow> {
+    memory::get_all_htlc_escrows()
+}
+
+/// Create cross-chain escrow coordination - Used by: System
+#[ic_cdk::update]
+async fn create_cross_chain_escrow(
+    order_id: String,
+    icp_escrow: HTLCEscrow,
+    evm_escrow: HTLCEscrow,
+) -> Result<String, EscrowError> {
+    let current_time = ic_cdk::api::time();
+
+    let cross_chain_escrow = CrossChainEscrow {
+        order_id: order_id.clone(),
+        icp_escrow,
+        evm_escrow,
+        coordination_state: CoordinationState::Pending,
+        events: Vec::new(),
+        icp_finality_lag: 0,
+        evm_finality_lag: 0,
+        failed_transactions: 0,
+        created_at: current_time,
+        updated_at: current_time,
+    };
+
+    // Store cross-chain escrow
+    memory::store_cross_chain_escrow(cross_chain_escrow)?;
+
+    ic_cdk::println!(
+        "🔗 Created cross-chain escrow coordination for order {}",
         order_id
     );
 
-    Ok(escrow_id)
+    Ok(order_id)
 }
 
-/// Lock ICP tokens for an order (called by orderbook) - Used by: Orderbook
-#[ic_cdk::update]
-async fn lock_icp_for_order(
-    order_id: String,
-    amount: u64,
-    timelock: u64,
-) -> Result<String, EscrowError> {
-    let caller = ic_cdk::caller();
-    let current_time = ic_cdk::api::time();
-
-    // Validate timelock is in the future
-    if timelock <= current_time {
-        return Err(EscrowError::TimelockExpired);
-    }
-
-    // Verify this is an ICP → ETH order by checking the order details
-    let is_icp_to_eth = verify_order_direction(&order_id).await?;
-    if !is_icp_to_eth {
-        return Err(EscrowError::InvalidState);
-    }
-
-    // Verify caller is the maker of this order
-    let is_maker = verify_caller_is_maker(&order_id, caller).await?;
-    if !is_maker {
-        return Err(EscrowError::Unauthorized);
-    }
-
-    // Generate escrow ID
-    let escrow_id = generate_escrow_id(&order_id);
-
-    // Create escrow record (resolver will be set later when order is accepted)
-    let escrow = FusionEscrow {
-        id: escrow_id.clone(),
-        order_id: order_id.clone(),
-        token: Token::ICP,
-        amount,
-        locked_by: caller,
-        resolver: Principal::anonymous(), // Will be updated when resolver accepts
-        timelock,
-        eth_receipt: None,
-        locked_at: current_time,
-        status: EscrowStatus::Created,
-    };
-
-    // Store escrow
-    memory::store_fusion_escrow(escrow)?;
-
-    // Get test token canister for ICP
-    let token_canister = get_test_token_canister(&Token::ICP)?;
-
-    // Transfer tokens from maker to escrow canister
-    transfer_tokens_to_escrow(token_canister, caller, amount).await?;
-
-    // Mark escrow as funded after successful transfer
-    fund_escrow(escrow_id.clone())?;
-
-    ic_cdk::println!(
-        "🔒 Automatically locked {} ICP tokens for ICP→ETH order {} (escrow: {})",
-        amount,
-        order_id,
-        escrow_id
-    );
-
-    Ok(escrow_id)
-}
-
-/// Claim locked ICP tokens with ETH receipt - Used by: Resolvers
-#[ic_cdk::update]
-async fn claim_locked_icp(escrow_id: String, eth_receipt: String) -> Result<(), EscrowError> {
-    let caller = ic_cdk::caller();
-    let current_time = ic_cdk::api::time();
-
-    // Get escrow
-    let mut escrow = memory::get_fusion_escrow(&escrow_id)?;
-
-    // Validate caller is the resolver
-    if caller != escrow.resolver {
-        return Err(EscrowError::Unauthorized);
-    }
-
-    // Validate escrow state
-    if escrow.status != EscrowStatus::Funded {
-        return Err(EscrowError::InvalidState);
-    }
-
-    // Validate timelock hasn't expired
-    if current_time >= escrow.timelock {
-        return Err(EscrowError::TimelockExpired);
-    }
-
-    // Validate receipt (in mechanical turk, this is manual verification)
-    if eth_receipt.is_empty() {
-        return Err(EscrowError::InvalidReceipt);
-    }
-
-    // Get test token canister for ICP
-    let token_canister = get_test_token_canister(&Token::ICP)?;
-
-    // Transfer tokens from escrow to resolver
-    transfer_tokens_from_escrow(token_canister, caller, escrow.amount).await?;
-
-    // Update escrow status
-    escrow.status = EscrowStatus::Claimed;
-    escrow.eth_receipt = Some(eth_receipt);
-    memory::store_fusion_escrow(escrow.clone())?;
-
-    ic_cdk::println!(
-        "✅ Claimed {} ICP tokens from fusion escrow {} by resolver {}",
-        escrow.amount,
-        escrow_id,
-        caller.to_text()
-    );
-
-    Ok(())
-}
-
-/// Refund locked ICP tokens after timelock expires - Used by: Makers
-#[ic_cdk::update]
-async fn refund_locked_icp(escrow_id: String) -> Result<(), EscrowError> {
-    let caller = ic_cdk::caller();
-    let current_time = ic_cdk::api::time();
-
-    // Get escrow
-    let mut escrow = memory::get_fusion_escrow(&escrow_id)?;
-
-    // Validate caller is the original locker
-    if escrow.locked_by != caller {
-        return Err(EscrowError::Unauthorized);
-    }
-
-    // Validate escrow state
-    if escrow.status != EscrowStatus::Funded {
-        return Err(EscrowError::InvalidState);
-    }
-
-    // Validate timelock has expired
-    if current_time < escrow.timelock {
-        return Err(EscrowError::TimelockNotExpired);
-    }
-
-    // Get test token canister for ICP
-    let token_canister = get_test_token_canister(&Token::ICP)?;
-
-    // Refund tokens from escrow to original locker
-    transfer_tokens_from_escrow(token_canister, caller, escrow.amount).await?;
-
-    // Update escrow status
-    escrow.status = EscrowStatus::Refunded;
-    memory::store_fusion_escrow(escrow.clone())?;
-
-    ic_cdk::println!(
-        "💰 Refunded {} ICP tokens to maker {} from fusion escrow {}",
-        escrow.amount,
-        caller.to_text(),
-        escrow_id
-    );
-
-    Ok(())
-}
-
-/// Get escrow status - Used by: Frontend/Users
+/// Get cross-chain escrow status - Used by: Frontend/Users
 #[ic_cdk::query]
-fn get_fusion_escrow_status(escrow_id: String) -> Option<FusionEscrow> {
-    memory::get_fusion_escrow(&escrow_id).ok()
+fn get_cross_chain_escrow_status(order_id: String) -> Option<CrossChainEscrow> {
+    memory::get_cross_chain_escrow(&order_id).ok()
 }
 
-/// Check if tokens are locked for an order - Used by: Resolvers/Relayers
+/// List all cross-chain escrows for debugging - Used by: Developers
 #[ic_cdk::query]
-fn is_tokens_locked(order_id: String) -> bool {
-    // Find escrow for this order
-    let escrows = memory::get_all_fusion_escrows();
-
-    for escrow in escrows {
-        if escrow.order_id == order_id {
-            // Check if escrow is funded (tokens are locked)
-            return escrow.status == EscrowStatus::Funded;
-        }
-    }
-
-    // No escrow found for this order
-    false
-}
-
-/// List all escrows for debugging - Used by: Developers
-#[ic_cdk::query]
-fn list_fusion_escrows() -> Vec<FusionEscrow> {
-    memory::get_all_fusion_escrows()
-}
-
-/// Fund an escrow (mark as funded after token transfer) - Used by: System
-#[ic_cdk::update]
-fn fund_escrow(escrow_id: String) -> Result<(), EscrowError> {
-    let mut escrow = memory::get_fusion_escrow(&escrow_id)?;
-    escrow.status = EscrowStatus::Funded;
-    memory::store_fusion_escrow(escrow)?;
-    Ok(())
-}
-
-/// Generate unique escrow ID
-fn generate_escrow_id(order_id: &str) -> String {
-    let timestamp = ic_cdk::api::time();
-    format!("escrow_{}_{}", order_id, timestamp)
-}
-
-/// Transfer tokens from user to escrow canister
-async fn transfer_tokens_to_escrow(
-    token_canister: Principal,
-    _from: Principal,
-    amount: u64,
-) -> Result<(), EscrowError> {
-    let escrow_principal = ic_cdk::id();
-
-    let transfer_args = TransferArg {
-        from_subaccount: None,
-        to: Account { owner: escrow_principal, subaccount: None },
-        amount: Nat::from(amount),
-        fee: None,
-        memo: None,
-        created_at_time: None,
-    };
-
-    let result: Result<(Result<u64, TransferError>,), _> =
-        call(token_canister, "icrc1_transfer", (transfer_args,)).await;
-
-    match result {
-        Ok((Ok(_),)) => Ok(()),
-        Ok((Err(TransferError::InsufficientFunds { balance: _ }),)) => {
-            Err(EscrowError::InsufficientBalance)
-        }
-        Ok((Err(_),)) => Err(EscrowError::TransferFailed),
-        Err(_) => Err(EscrowError::SystemError),
-    }
-}
-
-/// Transfer tokens from escrow canister to recipient
-async fn transfer_tokens_from_escrow(
-    token_canister: Principal,
-    to: Principal,
-    amount: u64,
-) -> Result<(), EscrowError> {
-    let _escrow_principal = ic_cdk::id();
-
-    let transfer_args = TransferArg {
-        from_subaccount: None,
-        to: Account { owner: to, subaccount: None },
-        amount: Nat::from(amount),
-        fee: None,
-        memo: None,
-        created_at_time: None,
-    };
-
-    let result: Result<(Result<u64, TransferError>,), _> =
-        call(token_canister, "icrc1_transfer", (transfer_args,)).await;
-
-    match result {
-        Ok((Ok(_),)) => Ok(()),
-        Ok((Err(_),)) => Err(EscrowError::TransferFailed),
-        Err(_) => Err(EscrowError::SystemError),
-    }
+fn list_cross_chain_escrows() -> Vec<CrossChainEscrow> {
+    memory::get_all_cross_chain_escrows()
 }
 
 /// Get test token canister ID based on token type
@@ -340,50 +145,6 @@ fn get_test_token_canister(token: &Token) -> Result<Principal, EscrowError> {
             Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")
                 .map_err(|_| EscrowError::SystemError)
         }
-    }
-}
-
-/// Verify that an order is ICP → ETH direction - Used by: Escrow
-async fn verify_order_direction(order_id: &str) -> Result<bool, EscrowError> {
-    // Get orderbook canister ID (this would be configured during deployment)
-    let orderbook_canister_id = Principal::from_text("uxrrr-q7777-77774-qaaaq-cai")
-        .map_err(|_| EscrowError::SystemError)?;
-
-    // Call orderbook to get order details
-    let result: Result<(Option<types::FusionOrder>,), _> =
-        ic_cdk::call(orderbook_canister_id, "get_fusion_order_status", (order_id.to_string(),))
-            .await;
-
-    match result {
-        Ok((Some(order),)) => {
-            // Check if order is ICP → ETH
-            let is_icp_to_eth = order.from_token == Token::ICP && order.to_token == Token::ETH;
-            Ok(is_icp_to_eth)
-        }
-        Ok((None,)) => Err(EscrowError::OrderNotFound),
-        Err(_) => Err(EscrowError::SystemError),
-    }
-}
-
-/// Verify that the caller is the maker of the order - Used by: Escrow
-async fn verify_caller_is_maker(order_id: &str, caller: Principal) -> Result<bool, EscrowError> {
-    // Get orderbook canister ID (this would be configured during deployment)
-    let orderbook_canister_id = Principal::from_text("uxrrr-q7777-77774-qaaaq-cai")
-        .map_err(|_| EscrowError::SystemError)?;
-
-    // Call orderbook to get order details
-    let result: Result<(Option<types::FusionOrder>,), _> =
-        ic_cdk::call(orderbook_canister_id, "get_fusion_order_status", (order_id.to_string(),))
-            .await;
-
-    match result {
-        Ok((Some(order),)) => {
-            // Check if caller is the maker
-            let is_maker = order.maker_icp_principal == caller;
-            Ok(is_maker)
-        }
-        Ok((None,)) => Err(EscrowError::OrderNotFound),
-        Err(_) => Err(EscrowError::SystemError),
     }
 }
 
