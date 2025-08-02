@@ -35,11 +35,8 @@ run_test() {
     echo ""
 }
 
-# Test 1: Compile identity management functionality
-run_test "Compile identity management functionality" "(cd src/relayer && cargo check)"
-
-# Test 2: Build canister with identity management
-run_test "Build canister with identity management" "(cd src/relayer && cargo build --target wasm32-unknown-unknown --release)"
+# Test 1: Check if canister is ready (assumes setup_and_compile.sh was run)
+run_test "Check canister readiness" "dfx canister call relayer get_active_fusion_orders --query --network local >/dev/null 2>&1"
 
 # Test 3: Verify register_cross_chain_identity function is present
 echo -e "${YELLOW}Verifying register_cross_chain_identity function...${NC}"
@@ -246,15 +243,13 @@ else
 fi
 TESTS_RUN=$((TESTS_RUN + 1))
 
-# Test 15: Check for compilation warnings
-echo -e "${YELLOW}Checking for compilation warnings...${NC}"
-WARNINGS=$((cd src/relayer && cargo check 2>&1) | grep -c "warning:" || echo "0")
-if [ "$WARNINGS" -lt "15" ]; then
-    echo -e "${GREEN}✅ Acceptable number of compilation warnings: $WARNINGS${NC}"
+# Test 15: Check canister status (assumes setup_and_compile.sh was run)
+echo -e "${YELLOW}Checking canister status...${NC}"
+if dfx canister status relayer --network local >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ Canister is deployed and ready${NC}"
     TESTS_PASSED=$((TESTS_PASSED + 1))
 else
-    echo -e "${YELLOW}⚠️  Found $WARNINGS compilation warnings (review if needed)${NC}"
-    TESTS_PASSED=$((TESTS_PASSED + 1))
+    echo -e "${RED}❌ Canister is not ready - run setup_and_compile.sh first${NC}"
 fi
 TESTS_RUN=$((TESTS_RUN + 1))
 

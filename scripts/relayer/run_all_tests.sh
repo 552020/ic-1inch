@@ -2,6 +2,12 @@
 
 # Master test script for Relayer Canister - Comprehensive Testing Suite
 # Runs all individual test scripts and provides summary report
+#
+# USAGE: 
+# 1. First run setup: ./scripts/relayer/setup_and_compile.sh (from project root)
+# 2. Then run tests: ./scripts/relayer/run_all_tests.sh (from project root)
+#
+# DO NOT run from scripts/relayer/ directory - paths are relative to project root
 
 set -e
 
@@ -32,6 +38,32 @@ echo -e "${CYAN}Canister:${NC} $CANISTER_ID"
 echo -e "${CYAN}Script Directory:${NC} $SCRIPT_DIR"
 echo ""
 
+# Function to check if canister is ready for testing
+check_canister_ready() {
+    echo -e "${YELLOW}🔍 Checking Relayer Canister Status${NC}"
+    echo "=========================================="
+    
+    # Check if canister is deployed
+    if dfx canister status relayer --network $DFX_NETWORK >/dev/null 2>&1; then
+        echo -e "${GREEN}✅ Relayer canister is deployed${NC}"
+        echo -e "${CYAN}Canister ID: $(dfx canister id relayer --network $DFX_NETWORK)${NC}"
+        
+        # Check if canister responds to queries
+        if dfx canister call relayer get_active_fusion_orders --query --network $DFX_NETWORK >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ Canister is responding to queries${NC}"
+            return 0
+        else
+            echo -e "${RED}❌ Canister is not responding to queries${NC}"
+            echo -e "${YELLOW}💡 Run ./scripts/relayer/setup_and_compile.sh first to compile and deploy${NC}"
+            return 1
+        fi
+    else
+        echo -e "${RED}❌ Relayer canister is not deployed${NC}"
+        echo -e "${YELLOW}💡 Run ./scripts/relayer/setup_and_compile.sh first to compile and deploy${NC}"
+        return 1
+    fi
+}
+
 # Function to run a test script and track results
 run_test() {
     local test_name="$1"
@@ -59,20 +91,7 @@ run_test() {
     fi
 }
 
-# Function to check canister deployment
-check_deployment() {
-    echo -e "${CYAN}Checking canister deployment...${NC}"
-    
-    if dfx canister status relayer --network $DFX_NETWORK >/dev/null 2>&1; then
-        echo -e "${GREEN}✅ Relayer canister is deployed${NC}"
-        return 0
-    else
-        echo -e "${RED}❌ Relayer canister is not deployed${NC}"
-        echo -e "${YELLOW}Deploying canister...${NC}"
-        dfx deploy relayer --network $DFX_NETWORK
-        return $?
-    fi
-}
+
 
 # Function to run performance test
 run_performance_test() {
@@ -158,17 +177,20 @@ run_integration_test() {
 # Main test execution
 echo -e "${BLUE}Starting comprehensive test suite...${NC}"
 
-# Check deployment first
-check_deployment
+# Check if canister is ready for testing
+if ! check_canister_ready; then
+    echo -e "${RED}❌ Canister not ready - aborting tests${NC}"
+    exit 1
+fi
 
-# Run individual test scripts
+# Run individual test scripts (removed test_data_types.sh as it's not needed for MVP)
+run_test "Basic Functionality Test" "$SCRIPT_DIR/test_relayer_basic.sh" "Tests basic canister operations"
 run_test "Order Acceptance Test" "$SCRIPT_DIR/test_order_acceptance.sh" "Tests enhanced order acceptance functionality"
 run_test "Direction Coordination Test" "$SCRIPT_DIR/test_directions.sh" "Tests order direction-specific coordination"
 run_test "Identity Management Test" "$SCRIPT_DIR/test_identity.sh" "Tests cross-chain identity management"
-run_test "Data Types Test" "$SCRIPT_DIR/test_data_types.sh" "Tests data structure serialization"
 run_test "Memory Management Test" "$SCRIPT_DIR/test_memory.sh" "Tests memory operations and persistence"
 run_test "Order Creation Test" "$SCRIPT_DIR/test_order_creation.sh" "Tests order creation functionality"
-run_test "Simplified Auction Test" "$SCRIPT_DIR/test_simplified_auction.sh" "Tests simplified Dutch auction placeholder"
+run_test "Simplified MVP Test" "$SCRIPT_DIR/test_simplified_mvp.sh" "Tests simplified MVP functionality"
 
 # Run additional tests
 run_performance_test
