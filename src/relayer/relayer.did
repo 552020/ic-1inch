@@ -1,131 +1,71 @@
-type CrossChainIdentity = record {
-  role : UserRole;
-  eth_address : text;
-  icp_principal : principal;
+type CrossChainOrderDto = record {
+  maker : text;
+  makingAmount : text;
+  salt : text;
+  makerAsset : text;
+  makerTraits : text;
+  takerAsset : text;
+  takingAmount : text;
+  receiver : text;
 };
-
-type EIP712Signature = record {
-  domain_separator : text;
-  type_hash : text;
-  order_hash : text;
-  signature_r : text;
-  signature_s : text;
-  signature_v : nat8;
-  signer_address : text;
-};
-
 type FusionError = variant {
+  TokenAddressInvalid;
   InvalidAmount;
   OrderNotPending;
   SystemError;
   OrderNotFound;
-  InsufficientBalance;
   OrderExpired;
   Unauthorized;
-  InvalidExpiration;
-  OrderAlreadyAccepted;
-  ResolverNotWhitelisted;
+  InvalidSalt;
   InvalidSecretHash;
   InvalidEIP712Signature;
-  OrderNotCancellable;
-  InvalidSecret;
-  InvalidSalt;
-  InvalidMakerTraits;
-  TokenAddressInvalid;
-  NotImplemented;
 };
-
-type FusionOrder = record {
+type Order = record {
   id : text;
-  maker_eth_address : text;
-  maker_icp_principal : principal;
-  resolver_eth_address : opt text;
-  resolver_icp_principal : opt principal;
-  salt : text;
-  maker_asset : text;
-  taker_asset : text;
-  making_amount : nat64;
-  taking_amount : nat64;
-  maker_traits : text;
-  hashlock : text;
+  fills : vec text;
+  auction_start_date : nat64;
   status : OrderStatus;
+  secret_hashes : vec text;
+  signature : text;
+  src_chain_id : nat64;
+  maker_asset : text;
+  hashlock : text;
+  taking_amount : text;
+  is_maker_contract : bool;
+  making_amount : text;
+  maker_eth_address : text;
+  salt : text;
+  deadline : nat64;
   created_at : nat64;
+  remaining_maker_amount : text;
+  dst_chain_id : nat64;
+  auction_end_date : nat64;
+  maker_traits : text;
+  taker_asset : text;
+  maker_balance : text;
+  quote_id : text;
+  maker_allowance : text;
   expires_at : nat64;
-  accepted_at : opt nat64;
-  completed_at : opt nat64;
-  eip712_signature : opt EIP712Signature;
-  from_token : Token;
-  to_token : Token;
-  from_amount : nat64;
-  to_amount : nat64;
-  secret_hash : text;
-  timelock_duration : nat64;
-  safety_deposit_amount : nat64;
+  maker_icp_principal : principal;
+  extension : text;
 };
-
-type OrderStatistics = record {
-  total_orders : nat64;
-  pending_orders : nat64;
-  accepted_orders : nat64;
-  completed_orders : nat64;
-  failed_orders : nat64;
-  cancelled_orders : nat64;
-  total_icp_volume : nat64;
-  total_eth_volume : nat64;
-};
-
-type OrderStatus = variant { 
-  Pending; 
-  Accepted; 
-  Completed; 
-  Failed; 
-  Cancelled; 
-};
-
-type Result = variant { Ok; Err : FusionError };
-type Result_1 = variant { Ok : text; Err : FusionError };
-type Result_2 = variant { Ok : principal; Err : FusionError };
+type OrderStatus = variant { Failed; Accepted; Cancelled; Completed; Pending };
+type Result = variant { Ok : Order; Err : FusionError };
+type Result_1 = variant { Ok : bool; Err : FusionError };
+type Result_2 = variant { Ok : vec text; Err : FusionError };
 type Result_3 = variant { Ok : text; Err : FusionError };
-
-type Token = variant { ETH; ICP };
-type UserRole = variant { Maker; Resolver };
-
 service : {
-  // Core Order Management
-  create_fusion_order : (text, text, text, nat64, nat64, text, text, nat64, opt EIP712Signature) -> (Result_1);
-  accept_fusion_order : (text, text) -> (Result_3);
-  complete_order_with_secret : (text, text) -> (Result);
-  cancel_order : (text) -> (Result);
-  
-  // Legacy Order Management (for backward compatibility)
-  create_order : (text, Token, Token, nat64, nat64, nat64, text) -> (Result_1);
-  
-  // Order Queries
-  get_active_fusion_orders : () -> (vec FusionOrder) query;
-  get_fusion_order_status : (text) -> (opt FusionOrder) query;
-  get_orders_by_maker : (principal) -> (vec FusionOrder) query;
-  get_orders_by_status : (OrderStatus) -> (vec FusionOrder) query;
-  get_order_statistics : () -> (OrderStatistics) query;
-  
-  // Direction-Specific Coordination
-  get_order_direction_info : (text) -> (Result_3) query;
-  get_orders_by_direction : (text) -> (vec FusionOrder) query;
-  get_orders_for_escrow_creation : () -> (vec FusionOrder) query;
-  
-  // Cross-Chain Identity Management
-  register_cross_chain_identity : (text, principal, UserRole) -> (Result);
-  get_cross_chain_identity : (text) -> (opt CrossChainIdentity) query;
-  get_cross_chain_identity_by_principal : (principal) -> (opt CrossChainIdentity) query;
-  get_principal_from_eth_address : (text) -> (Result_2);
-  store_siwe_identity : (text, principal, UserRole) -> (Result);
-  
-  // Order Status Management
-  update_order_status : (text, OrderStatus) -> (Result);
-  
-  // Escrow Factory Notifications
-  notify_escrow_completed : (text, text) -> (Result);
-  notify_escrow_cancelled : (text, text) -> (Result);
-  
-  // Legacy Functions (for backward compatibility)
-  derive_principal_from_eth_address : (text) -> (Result_2);
-};
+  fusion_plus_order_escrow : (text, nat64) -> (Result) query;
+  fusion_plus_order_ready_to_accept_secret_fills : (text) -> (Result_1) query;
+  fusion_plus_order_secrets : (text) -> (Result_2) query;
+  fusion_plus_order_status : (text) -> (Result) query;
+  fusion_plus_orders_active : () -> (vec Order) query;
+  fusion_plus_relayer_submit : (
+      CrossChainOrderDto,
+      nat64,
+      text,
+      text,
+      text,
+      vec text,
+    ) -> (Result_3);
+}

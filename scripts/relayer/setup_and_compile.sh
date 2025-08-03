@@ -29,74 +29,60 @@ fi
 
 echo -e "${GREEN}✅ Running from project root directory${NC}"
 
-# Step 1: Start local replica if not running
+# Step 1: Check if DFX is running
 echo -e "\n${YELLOW}Step 1: Starting local replica...${NC}"
-
-# Check if dfx is already running
-if dfx ping local >/dev/null 2>&1; then
+if dfx ping > /dev/null 2>&1; then
     echo -e "${GREEN}✅ Local replica is already running and accessible${NC}"
 else
     echo -e "${YELLOW}🔄 Starting local replica...${NC}"
-    # Try to start dfx, but handle if it's already running
-    if ! dfx start --clean --background 2>/dev/null; then
-        echo -e "${YELLOW}⚠️  dfx is already running, checking if it's accessible...${NC}"
-        sleep 3
-        if dfx ping local >/dev/null 2>&1; then
-            echo -e "${GREEN}✅ Local replica is now accessible${NC}"
-        else
-            echo -e "${RED}❌ dfx is running but not responding to ping${NC}"
-            echo -e "${YELLOW}💡 You may need to restart dfx manually: pkill -f 'dfx start' && dfx start --clean --background${NC}"
-            exit 1
-        fi
-    else
-        echo -e "${GREEN}✅ Local replica started successfully${NC}"
-        sleep 5  # Wait for replica to start
-    fi
+    dfx start --background --clean
+    echo -e "${GREEN}✅ Local replica started successfully${NC}"
 fi
 
-# Step 2: Compile the canister
+# Step 2: Compile the relayer canister
 echo -e "\n${YELLOW}Step 2: Compiling Relayer Canister...${NC}"
-start_time=$(date +%s.%N)
-
-# Check if compilation is needed
 wasm_file="target/wasm32-unknown-unknown/release/relayer.wasm"
-relayer_dir="src/relayer"
 
 if [ -f "$wasm_file" ]; then
-    # Check if source files are newer than WASM
-    newest_source=$(find "$relayer_dir/src" -name "*.rs" -newer "$wasm_file" 2>/dev/null | head -1)
-    if [ -z "$newest_source" ]; then
-        echo -e "${GREEN}✅ Using existing WASM file (no recompilation needed)${NC}"
-    else
-        echo -e "${YELLOW}🔄 Source files changed - recompiling...${NC}"
-        (cd "$relayer_dir" && cargo build --target wasm32-unknown-unknown --release)
-    fi
-else
-    echo -e "${YELLOW}🔄 Compilation needed - building canister...${NC}"
-    (cd "$relayer_dir" && cargo build --target wasm32-unknown-unknown --release)
+    echo -e "${YELLOW}🔄 Source files changed - recompiling...${NC}"
 fi
 
-    end_time=$(date +%s.%N)
+# Build the canister
+start_time=$(date +%s.%N)
+cargo build --target wasm32-unknown-unknown --release -p relayer
+end_time=$(date +%s.%N)
+
+# Calculate duration (requires bc)
+if command -v bc > /dev/null 2>&1; then
     duration=$(echo "$end_time - $start_time" | bc)
+else
+    duration="N/A"
+fi
+
 echo -e "${GREEN}✅ Compilation completed in ${duration}s${NC}"
 echo -e "${GREEN}📁 WASM file: $wasm_file${NC}"
 echo -e "${GREEN}📏 Size: $(ls -lh "$wasm_file" | awk '{print $5}')${NC}"
 
 # Step 3: Deploy the canister
 echo -e "\n${YELLOW}Step 3: Deploying Relayer Canister...${NC}"
-if dfx canister status relayer --network local >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ Relayer canister is already deployed${NC}"
-    echo -e "${CYAN}Canister ID: $(dfx canister id relayer --network local)${NC}"
-else
-    echo -e "${YELLOW}🔄 Deploying canister...${NC}"
-    dfx deploy relayer --network local
-    echo -e "${GREEN}✅ Relayer canister deployed successfully${NC}"
-    echo -e "${CYAN}Canister ID: $(dfx canister id relayer --network local)${NC}"
-fi
+echo -e "${YELLOW}🔄 Force redeploying to get latest clean code...${NC}"
+printf "yes\nyes\n" | dfx deploy relayer --mode reinstall --network local
+echo -e "${GREEN}✅ Relayer canister deployed successfully${NC}"
+echo -e "${CYAN}Canister ID: $(dfx canister id relayer --network local)${NC}"
 
-# Step 4: Verify deployment
-echo -e "\n${YELLOW}Step 4: Verifying deployment...${NC}"
-if dfx canister call relayer get_active_fusion_orders --query --network local >/dev/null 2>&1; then
+# Step 4: Generate DID files
+echo -e "\n${YELLOW}Step 4: Generating Candid interface...${NC}"
+generate-did relayer
+echo -e "${GREEN}✅ Candid interface generated${NC}"
+
+# Step 5: Generate TypeScript declarations
+echo -e "\n${YELLOW}Step 5: Generating TypeScript declarations...${NC}"
+dfx generate relayer
+echo -e "${GREEN}✅ TypeScript declarations generated${NC}"
+
+# Step 6: Verify deployment
+echo -e "\n${YELLOW}Step 6: Verifying deployment...${NC}"
+if dfx canister call relayer fusion_plus_orders_active --query --network local >/dev/null 2>&1; then
     echo -e "${GREEN}✅ Canister is responding to queries${NC}"
 else
     echo -e "${RED}❌ Canister is not responding to queries${NC}"
@@ -104,5 +90,6 @@ else
 fi
 
 echo -e "\n${GREEN}🎉 Setup completed successfully!${NC}"
-echo -e "${CYAN}You can now run tests with: ./scripts/relayer/run_all_tests.sh${NC}"
-echo -e "${CYAN}Or run individual tests from the scripts/relayer/ directory${NC}" 
+echo -e "${CYAN}You can now test the relayer with:${NC}"
+echo -e "${CYAN}  1. Maker: ./scripts/relayer/maker-submit-order.sh${NC}"
+echo -e "${CYAN}  2. Taker: ./scripts/relayer/taker-fetch-orders.sh${NC}"

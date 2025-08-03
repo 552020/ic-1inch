@@ -1,5 +1,4 @@
 use crate::types::{FusionError, Order, OrderStatus};
-use candid::Principal;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -16,46 +15,9 @@ pub fn store_order(order: Order) -> Result<(), FusionError> {
     })
 }
 
-/// Update an existing order
-pub fn update_order(order: Order) -> Result<(), FusionError> {
-    ORDERS.with(|orders| {
-        let mut orders_map = orders.borrow_mut();
-        if orders_map.contains_key(&order.id) {
-            orders_map.insert(order.id.clone(), order);
-            Ok(())
-        } else {
-            Err(FusionError::OrderNotFound)
-        }
-    })
-}
-
 /// Get an order by ID
 pub fn get_order(order_id: &str) -> Result<Order, FusionError> {
     ORDERS.with(|orders| orders.borrow().get(order_id).cloned().ok_or(FusionError::OrderNotFound))
-}
-
-/// Get all orders
-pub fn get_all_orders() -> Vec<Order> {
-    ORDERS.with(|orders| orders.borrow().values().cloned().collect())
-}
-
-/// Get orders by status
-pub fn get_orders_by_status(status: OrderStatus) -> Vec<Order> {
-    ORDERS.with(|orders| {
-        orders.borrow().values().filter(|order| order.status == status).cloned().collect()
-    })
-}
-
-/// Get orders by maker principal
-pub fn get_orders_by_maker(maker_principal: Principal) -> Vec<Order> {
-    ORDERS.with(|orders| {
-        orders
-            .borrow()
-            .values()
-            .filter(|order| order.maker_icp_principal == maker_principal)
-            .cloned()
-            .collect()
-    })
 }
 
 /// Get all active orders (Pending and Accepted status)
@@ -95,9 +57,4 @@ pub fn deserialize_relayer_state(
     });
 }
 
-/// Clear all order data (for testing)
-pub fn clear_order_data() {
-    ORDERS.with(|orders| {
-        orders.borrow_mut().clear();
-    });
-}
+

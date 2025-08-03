@@ -129,6 +129,9 @@ fn post_upgrade() {
     memory::deserialize_relayer_state(orders, identities);
 }
 
+// Candid export for DID generation
+ic_cdk::export_candid!();
+
 // ============================================================================
 // TESTS
 // ============================================================================
