@@ -56,5 +56,3 @@ pub fn deserialize_relayer_state(
         }
     });
 }
-
-
