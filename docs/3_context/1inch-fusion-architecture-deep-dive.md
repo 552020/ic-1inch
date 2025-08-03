@@ -50,12 +50,17 @@ EscrowFactory (deploys implementations once)
 - Deterministic addresses via CREATE2
 - **Critical**: Same parameters = same address across chains
 
-### **Integration Point**: LOP PostInteraction
+### **Integration Point**: LOP Dual Callbacks
 
-- Resolver calls `LOP.settleOrders()`
-- LOP validates EIP-712 signature
-- LOP transfers maker tokens to computed escrow address
-- LOP calls `EscrowFactory._postInteraction()` → creates EscrowSrc
+**Single Resolver Call Triggers Both Escrows:**
+
+```
+Resolver.deploySrc() → LOP.fillOrderArgs() → Two Callbacks:
+1. LOP._postInteraction() → EscrowFactory → creates EscrowSrc
+2. LOP.takerInteraction() → EscrowFactory → validates proofs (could trigger EscrowDst)
+```
+
+**Critical**: LOP makes **two callbacks** in one transaction, not separate calls
 
 ---
 
@@ -188,9 +193,10 @@ Critical parameters encoded in salt:
 **Flow Verification:**
 
 - ✅ **EscrowSrc**: LOP creates via `_postInteraction()` → `_deployEscrow()`
-- ✅ **EscrowDst**: Resolver creates via `createDstEscrow()`
+- ⚠️ **EscrowDst**: Current implementation only validates Merkle proofs in `takerInteraction()`
 - ✅ **Secret Validation**: Both use same `immutables.hashlock` check
 - ✅ **Timelock Stages**: Complex timelock stages confirmed in both contracts
+- ❌ **CORRECTION**: Original analysis missed LOP dual-callback pattern
 
 ### **⚠️ Documentation vs Code Gaps:**
 
