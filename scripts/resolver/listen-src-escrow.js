@@ -13,9 +13,20 @@ import fs from "fs";
 import path from "path";
 dotenv.config();
 
+// Load config
+const config = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "config.json"), "utf8")
+);
+const network = config.baseSepolia;
+
 // Constants
-const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-const escrowFactoryAddress = process.env.ESCROW_FACTORY;
+const escrowFactoryAddress = network.contracts.escrowFactory;
+// For better event listening, let's try a different approach
+const rpcUrl = "https://sepolia.base.org"; // Public RPC for testing
+const provider = new ethers.JsonRpcProvider(rpcUrl);
+
+console.log("🔗 Connected to Base Sepolia");
+console.log("📍 EscrowFactory:", escrowFactoryAddress);
 const eventsFile = path.join(process.cwd(), "events.json");
 
 // Event signature (from logs)
@@ -26,14 +37,25 @@ const topic = iface.getEvent("SrcEscrowCreated").topicHash;
 
 // Main
 async function main() {
-  console.log("Listening for SrcEscrowCreated events...");
+  console.log("Checking for recent SrcEscrowCreated events...");
 
-  provider.on(
-    {
+  try {
+    // Get recent events from the last 1000 blocks
+    const currentBlock = await provider.getBlockNumber();
+    const fromBlock = Math.max(0, currentBlock - 1000);
+
+    console.log(`📊 Scanning blocks ${fromBlock} to ${currentBlock}`);
+
+    const logs = await provider.getLogs({
       address: escrowFactoryAddress,
       topics: [topic],
-    },
-    async (log) => {
+      fromBlock: fromBlock,
+      toBlock: "latest",
+    });
+
+    console.log(`🔍 Found ${logs.length} events`);
+
+    for (const log of logs) {
       const parsed = iface.parseLog(log);
       const { salt } = parsed.args;
 
@@ -43,6 +65,7 @@ async function main() {
       console.log("📦 SrcEscrowCreated:");
       console.log("  Salt:          ", salt);
       console.log("  Block:         ", log.blockNumber);
+      console.log("  TxHash:        ", log.transactionHash);
       console.log(
         "  Deployed At:   ",
         new Date(deployedAt * 1000).toISOString()
@@ -59,17 +82,26 @@ async function main() {
       };
 
       // Append to events.json
-      const events = JSON.parse(
-        fs.readFileSync(eventsFile, "utf8").catch(() => "[]") || "[]"
-      );
+      let events = [];
+      try {
+        events = JSON.parse(fs.readFileSync(eventsFile, "utf8"));
+      } catch (e) {
+        events = [];
+      }
+
       events.push(eventData);
       fs.writeFileSync(eventsFile, JSON.stringify(events, null, 2));
-      console.log("  Saved to events.json");
-
-      // TODO: Call ICP escrow_manager.createDstEscrow() here
-      // const srcCancellationTimestamp = deployedAt + srcTimelock;
+      console.log("  ✅ Saved to events.json");
+      console.log("");
     }
-  );
+
+    if (logs.length === 0) {
+      console.log("❌ No recent SrcEscrowCreated events found");
+      console.log("💡 Try creating a test escrow to generate events");
+    }
+  } catch (error) {
+    console.error("❌ Error:", error.message);
+  }
 }
 
 main();
