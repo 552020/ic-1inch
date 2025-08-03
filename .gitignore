@@ -36,3 +36,4 @@ docs/1inch-resolver-example/
 docs/SIWE/
 
 pnpm-lock.yaml
+*.code-workspace
