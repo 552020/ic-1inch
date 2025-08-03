@@ -1,0 +1,17 @@
+{
+  "name": "fusion-resolver",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "1inch Fusion+ resolver for ETH <> ICP swaps",
+  "main": "listen-src-escrow.js",
+  "scripts": {
+    "start": "node listen-src-escrow.js",
+    "dev": "node --watch listen-src-escrow.js"
+  },
+  "dependencies": {
+    "ethers": "^6.8.0",
+    "dotenv": "^16.3.1",
+    "@dfinity/agent": "^0.20.0",
+    "@dfinity/principal": "^0.20.0"
+  }
+}
