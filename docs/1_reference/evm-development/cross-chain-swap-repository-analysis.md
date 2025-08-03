@@ -1,5 +1,7 @@
 # 1inch Fusion Atomic Swaps - Analysis & Findings
 
+> **Note:** This document contains analysis of the 1inch Fusion atomic swap protocol based on exploration of the `cross-chain-swap` repository. During documentation reorganization, many referenced files were moved to different locations. Some internal links may be broken and need updating.
+
 This document contains our comprehensive analysis of the 1inch Fusion atomic swap protocol based on exploration of the `cross-chain-swap` repository.
 
 ## Table of Contents
