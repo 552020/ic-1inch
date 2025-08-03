@@ -1,0 +1,37 @@
+🎁 GIVEAWAY ORDER CREATED SUCCESSFULLY!
+
+📅 Date: 2024-08-01
+🌐 Network: Base Sepolia (Chain ID: 84532)
+📋 Contract: 0xdfC365795F146a6755998C5e916a592A9706eDC6
+
+👤 MAKER DETAILS:
+   Address: 0x8CB80b37cc7193D0f055b1189F25eB903D888D3A
+   Offering: 0.01 ETH for NOTHING!
+
+📋 ORDER DETAILS:
+   Maker: 0x8CB80b37cc7193D0f055b1189F25eB903D888D3A
+   Maker Asset: 0x4200000000000000000000000000000000000006 (WETH)
+   Taker Asset: 0x0000000000000000000000000000000000000000 (NOTHING!)
+   Making Amount: 0.01 ETH
+   Taking Amount: 0 (ZERO!)
+   Salt: 0x94861106fbd44d75f10ee28c0409f002654b038664c4c8e4ff8a2b3a6dac8718
+
+🔐 CRYPTOGRAPHIC DETAILS:
+   Domain Separator: 0x735cf8ae87c8ee078fdcf9e0c0cbe4302c1fbe85a4a2888675780d2cba30d31c
+   Order Hash: 0xac80bed42d25da45d5017d2240dd687a99a772d7706a133074bbe6b410f244a7
+   Signature: 0xde244154d111984ccee9a38dca3f6430eeaff05256df7e802220764e0553092659b15dca28a74a14a150512e7812ff2ee9bf410f90496edc8e809de1357bf0e31c
+
+🔧 SIGNATURE COMPONENTS:
+   r: 0xde244154d111984ccee9a38dca3f6430eeaff05256df7e802220764e05530926
+   vs: 0x59b15dca28a74a14a150512e7812ff2ee9bf410f90496edc8e809de1357bf0e31c
+
+✅ STATUS: Giveaway order created and signed!
+🎁 Anyone can now take your 0.01 ETH for free!
+
+📋 TO FILL THIS ORDER:
+   lop.fillOrder(order, "0xde244154d111984ccee9a38dca3f6430eeaff05256df7e802220764e05530926", "0x59b15dca28a74a14a150512e7812ff2ee9bf410f90496edc8e809de1357bf0e31c", amount, takerTraits)
+
+💰 VALUE: ~$3.60 USD (0.01 ETH at current rates)
+
+🎯 PURPOSE: Testing Limit Order Protocol functionality
+🔗 BLOCK EXPLORER: https://sepolia.basescan.org/address/0xdfC365795F146a6755998C5e916a592A9706eDC6 
