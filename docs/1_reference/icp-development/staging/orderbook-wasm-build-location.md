@@ -1,5 +1,7 @@
 # Issue: Orderbook WASM Build Location Inconsistency
 
+> **TODO:** This document needs to be reformulated in more general terms to be useful as ICP development reference. Currently it's too specific to the orderbook component. Should be generalized to cover Cargo workspace build patterns and WASM artifact location best practices for ICP canisters.
+
 **Issue ID:** `orderbook-wasm-build-location`  
 **Priority:** Medium  
 **Status:** Open  

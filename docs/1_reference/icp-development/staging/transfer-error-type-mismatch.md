@@ -1,5 +1,7 @@
 # TransferError and TransferArg Type Mismatch Issues
 
+> **TODO:** This document needs to be reformulated in more general terms to be useful as ICP development reference. Currently it's too specific to test token implementation issues. Should be generalized to cover ICRC-1 type compatibility patterns, error handling best practices, and common type mismatch troubleshooting for ICP token integration.
+
 ## 🐛 **Problem**
 
 When trying to fill limit orders, the backend receives a `TokenCallFailed` error with the message:

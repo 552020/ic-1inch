@@ -1,10 +1,5 @@
 # DID File Generation: Chicken-and-Egg Problem
 
-**Issue Type:** Development Workflow  
-**Status:** Documented  
-**Priority:** High  
-**Date:** January 2025
-
 ## Problem Statement
 
 There's a circular dependency when generating `.did` files for canisters:

@@ -1,5 +1,7 @@
 # Token Canister Dependency Issue
 
+> **TODO:** This document needs to be reformulated in more general terms to be useful as ICP development reference. Currently it's too specific to the MVP deployment issue. Should be generalized to cover ICRC-1 token integration patterns, canister dependency management, and deployment strategies for ICP projects.
+
 _Issue: MVP deployment fails due to non-existent token canisters_
 
 ---
