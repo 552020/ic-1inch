@@ -36,18 +36,19 @@ ICP CANISTERS                    ETHEREUM CONTRACTS
 
 ```
 OFFICIAL REFERENCES              YOUR ANALYSIS & DESIGN
-├── internal/1inch/repos/        ├── .kiro/specs/ (multiple project specs)
-│   ├── limit-order-protocol     ├── docs/masterplan/ (strategy)
-│   ├── cross-chain-swap         ├── docs/1_1Inch/ (1inch analysis)
-│   └── fusion-sdk               └── docs/cross-turk/ (abandoned simple impl)
-└── fusion-resolver-example/
-    └── Official resolver impl
+├── docs/1_reference/repos/      ├── .kiro/specs/ (multiple project specs)
+│   ├── limit-order-protocol     ├── docs/2_architecture/ (strategy)
+│   ├── cross-chain-swap         ├── docs/1_reference/1inch-analysis/ (1inch analysis)
+│   ├── fusion-sdk               └── docs/4_legacy/ (first attempts)
+│   └── fusion-resolver-example  └── docs/1_reference/apis/ (official 1inch APIs)
+└── docs/1_reference/secretus/
+    └── External project references
 ```
 
 ### **Legacy/Reference**
 
-- `evm/` - Abandoned first attempt, keep as reference
-- `docs/cross-turk/` - Simple mechanical turk attempt, now abandoned
+- `docs/4_legacy/evm/` - Abandoned first attempt, archived
+- `docs/4_legacy/` - All first attempts and outdated implementations
 
 ---
 
@@ -73,17 +74,21 @@ OFFICIAL REFERENCES              YOUR ANALYSIS & DESIGN
 
 ### **3. Official 1inch Implementations**
 
-- **Solidity Reference**: `internal/1inch/repos/cross-chain-swap/`
+- **Solidity Reference**: `docs/1_reference/repos/cross-chain-swap/`
   - EscrowFactory pattern
   - BaseEscrow timelock system
   - Safety deposit mechanisms
-- **LOP Reference**: `internal/1inch/repos/limit-order-protocol/`
+- **LOP Reference**: `docs/1_reference/repos/limit-order-protocol/`
   - Fill order pattern
   - Order validation
   - Signature verification
-- **Resolver Pattern**: `fusion-resolver-example/`
+- **Resolver Pattern**: `docs/1_reference/repos/fusion-resolver-example/`
   - How resolvers interact with escrows
   - Settlement examples
+- **API Reference**: `docs/1_reference/apis/`
+  - Official 1inch Fusion+ API endpoints
+  - Cross-chain swap endpoints
+  - Authentication and rate limits
 
 ### **4. Your Design Decisions**
 
@@ -93,8 +98,8 @@ OFFICIAL REFERENCES              YOUR ANALYSIS & DESIGN
   - `relayer_canister_fusion+/` - Order coordination
   - `fusion-plus-icp-mvp/` - Overall ICP integration
   - `fusion-plus-mechanical-turk/` - Simple implementation attempt
-- **Architecture Strategy**: `docs/masterplan/docs/implementation_architecture.md`
-- **Integration Strategy**: `docs/masterplan/docs/icp_cross_chain_coordination.md`
+- **Architecture Strategy**: `docs/2_architecture/` (implementation decisions and staging)
+- **Integration Strategy**: `docs/2_architecture/staging/` (cross-chain coordination analysis)
 
 ---
 
@@ -148,9 +153,9 @@ Options:
 
 **Cross-Chain Coordination (CORE REQUIREMENT)** → Check:
 
-- `docs/masterplan/docs/icp_cross_chain_coordination.md`
+- `docs/2_architecture/staging/` (cross-chain coordination analysis)
 - `src/escrow_manager/src/chain_fusion.rs`
-- `cross-chain-swap/contracts/BaseEscrow.sol`
+- `eth/contracts/BaseEscrow.sol`
 
 **Secret Management (CORE REQUIREMENT)** → Check:
 
@@ -162,12 +167,12 @@ Options:
 
 - `.kiro/specs/fusion-plus-icp-mvp/`
 - `src/escrow_manager/src/lib.rs` (escrow creation)
-- `cross-chain-swap/scripts/` (testing patterns)
+- `eth/scripts/` (testing patterns)
 
 **Partial Fills (STRETCH GOAL)** → Check:
 
 - Whitepaper Section 2.5
-- `internal/1inch/repos/limit-order-protocol/` partial logic
+- `docs/1_reference/repos/limit-order-protocol/` partial logic
 - Implement in: `src/limit-order/src/` (new partial_fills.rs)
 
 ### **When Debugging:**
@@ -175,18 +180,19 @@ Options:
 **Escrow Issues** → Check:
 
 - `src/escrow_manager/src/lib.rs` (ICP side)
-- `cross-chain-swap/contracts/` (Ethereum side)
-- `cross-chain-swap/scripts/` (deployment/testing)
+- `eth/contracts/` (Ethereum side)
+- `eth/scripts/` (deployment/testing)
 
 **Order Issues** → Check:
 
 - `src/limit-order/src/lib.rs` (core functions)
-- `internal/1inch/repos/limit-order-protocol/` (reference pattern)
+- `docs/1_reference/repos/limit-order-protocol/` (reference pattern)
 
 **Integration Issues** → Check:
 
 - `src/escrow_manager/src/chain_fusion.rs` (Chain Fusion)
 - `src/relayer/src/lib.rs` (coordination helper)
+- `docs/2_architecture/staging/` (coordination analysis)
 
 ---
 
@@ -229,13 +235,14 @@ Options:
 
 ### **Key Reference Documents:**
 
-- `docs/1_1Inch/1inch-fusion-plus-whitepaper.md` - The specification
+- `docs/1_reference/1inch-analysis/1inch-fusion-plus-whitepaper.md` - The specification
 - `.kiro/specs/icp-limit-order-protocol-mvp/design.md` - Your architecture
-- `internal/implementation-status-assessment.md` - Current status vs whitepaper
+- `docs/1_reference/apis/` - Official 1inch API documentation
+- `docs/1_reference/limit-order-protocol/` - Official LOP documentation
 
 ### **Testing & Deployment:**
 
-- `cross-chain-swap/scripts/` - Ethereum deployment scripts
+- `eth/scripts/` - Ethereum deployment scripts
 - `scripts/limit-order/` - ICP testing scripts
 - Base Sepolia: Both limit-order-protocol and cross-chain-swap deployed
 
