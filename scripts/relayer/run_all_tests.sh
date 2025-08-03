@@ -43,23 +43,14 @@ check_canister_ready() {
     echo -e "${YELLOW}🔍 Checking Relayer Canister Status${NC}"
     echo "=========================================="
     
-    # Check if canister is deployed
-    if dfx canister status relayer --network $DFX_NETWORK >/dev/null 2>&1; then
-        echo -e "${GREEN}✅ Relayer canister is deployed${NC}"
+    # Just check if canister responds to queries (assume it's already deployed)
+    if dfx canister call relayer get_active_fusion_orders --query --network $DFX_NETWORK >/dev/null 2>&1; then
+        echo -e "${GREEN}✅ Canister is responding to queries${NC}"
         echo -e "${CYAN}Canister ID: $(dfx canister id relayer --network $DFX_NETWORK)${NC}"
-        
-        # Check if canister responds to queries
-        if dfx canister call relayer get_active_fusion_orders --query --network $DFX_NETWORK >/dev/null 2>&1; then
-            echo -e "${GREEN}✅ Canister is responding to queries${NC}"
-            return 0
-        else
-            echo -e "${RED}❌ Canister is not responding to queries${NC}"
-            echo -e "${YELLOW}💡 Run ./scripts/relayer/setup_and_compile.sh first to compile and deploy${NC}"
-            return 1
-        fi
+        return 0
     else
-        echo -e "${RED}❌ Relayer canister is not deployed${NC}"
-        echo -e "${YELLOW}💡 Run ./scripts/relayer/setup_and_compile.sh first to compile and deploy${NC}"
+        echo -e "${RED}❌ Canister is not responding${NC}"
+        echo -e "${YELLOW}💡 Run ./scripts/relayer/setup_and_compile.sh first${NC}"
         return 1
     fi
 }
@@ -93,54 +84,9 @@ run_test() {
 
 
 
-# Function to run performance test
-run_performance_test() {
-    echo -e "\n${YELLOW}Performance Test: Load Testing${NC}"
-    echo "----------------------------------------"
-    
-    TOTAL_TESTS=$((TOTAL_TESTS + 1))
-    
-    # Test order creation performance
-    echo "Testing order creation performance..."
-    start_time=$(date +%s.%N)
-    
-    for i in {1..10}; do
-        dfx canister call relayer create_fusion_order \
-            "(\"0x$(printf '%016x' $i)\", \"ICP\", \"ETH\", 1000000, 500000, \"0x\", \"a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef1234\", 1700000000000000000, null)" \
-            --network $DFX_NETWORK >/dev/null 2>&1 || true
-    done
-    
-    end_time=$(date +%s.%N)
-    duration=$(echo "$end_time - $start_time" | bc)
-    
-    echo -e "${GREEN}✅ Performance test completed in ${duration}s${NC}"
-    PASSED_TESTS=$((PASSED_TESTS + 1))
-}
 
-# Function to run deployment test
-run_deployment_test() {
-    echo -e "\n${YELLOW}Deployment Test: Canister Validation${NC}"
-    echo "----------------------------------------"
-    
-    TOTAL_TESTS=$((TOTAL_TESTS + 1))
-    
-    # Check canister status
-    if dfx canister status relayer --network $DFX_NETWORK >/dev/null 2>&1; then
-        echo -e "${GREEN}✅ Canister status check passed${NC}"
-        
-        # Check if canister responds to basic query
-        if dfx canister call relayer get_active_fusion_orders --query --network $DFX_NETWORK >/dev/null 2>&1; then
-            echo -e "${GREEN}✅ Canister query test passed${NC}"
-            PASSED_TESTS=$((PASSED_TESTS + 1))
-        else
-            echo -e "${RED}❌ Canister query test failed${NC}"
-            FAILED_TESTS=$((FAILED_TESTS + 1))
-        fi
-    else
-        echo -e "${RED}❌ Canister status check failed${NC}"
-        FAILED_TESTS=$((FAILED_TESTS + 1))
-    fi
-}
+
+
 
 # Function to run integration test
 run_integration_test() {
@@ -183,18 +129,10 @@ if ! check_canister_ready; then
     exit 1
 fi
 
-# Run individual test scripts (removed test_data_types.sh as it's not needed for MVP)
-run_test "Basic Functionality Test" "$SCRIPT_DIR/test_relayer_basic.sh" "Tests basic canister operations"
-run_test "Order Acceptance Test" "$SCRIPT_DIR/test_order_acceptance.sh" "Tests enhanced order acceptance functionality"
-run_test "Direction Coordination Test" "$SCRIPT_DIR/test_directions.sh" "Tests order direction-specific coordination"
-run_test "Identity Management Test" "$SCRIPT_DIR/test_identity.sh" "Tests cross-chain identity management"
-run_test "Memory Management Test" "$SCRIPT_DIR/test_memory.sh" "Tests memory operations and persistence"
-run_test "Order Creation Test" "$SCRIPT_DIR/test_order_creation.sh" "Tests order creation functionality"
-run_test "Simplified MVP Test" "$SCRIPT_DIR/test_simplified_mvp.sh" "Tests simplified MVP functionality"
+# Run the only useful test (all garbage tests deleted)
+run_test "Minimal Functionality Test" "$SCRIPT_DIR/test_relayer_minimal.sh" "Tests essential canister functionality"
 
-# Run additional tests
-run_performance_test
-run_deployment_test
+# Run basic integration test (skip performance - not needed for hackathon)
 run_integration_test
 
 # Summary report

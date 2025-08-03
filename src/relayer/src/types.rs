@@ -1,9 +1,31 @@
 use candid::{CandidType, Principal};
 use serde::{Deserialize, Serialize};
 
-/// Simplified cross-chain fusion order for MVP (1inch LOP compatible)
+// ============================================================================
+// 1INCH API STRUCTURES (Essential Only)
+// ============================================================================
+
+/// Core order data - matches 1inch LOP exactly (for /submit endpoint)
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
-pub struct FusionOrder {
+pub struct CrossChainOrderDto {
+    pub salt: String,
+    pub maker: String,
+    pub receiver: String,
+    #[serde(rename = "makerAsset")]
+    pub maker_asset: String,
+    #[serde(rename = "takerAsset")]
+    pub taker_asset: String,
+    #[serde(rename = "makingAmount")]
+    pub making_amount: String,
+    #[serde(rename = "takingAmount")]
+    pub taking_amount: String,
+    #[serde(rename = "makerTraits")]
+    pub maker_traits: String,
+}
+
+/// Internal order storage and API responses
+#[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
+pub struct Order {
     // Core Order Data
     pub id: String,
     pub maker_eth_address: String,
@@ -11,16 +33,16 @@ pub struct FusionOrder {
     pub resolver_eth_address: Option<String>,
     pub resolver_icp_principal: Option<Principal>,
 
-    // 1inch LOP Order Compatibility (Essential Fields Only)
-    pub salt: String,         // uint256 salt for uniqueness
-    pub maker_asset: String,  // Address makerAsset (token being sold)
-    pub taker_asset: String,  // Address takerAsset (token being bought)
-    pub making_amount: u64,   // uint256 makingAmount (amount maker is selling)
-    pub taking_amount: u64,   // uint256 takingAmount (amount maker wants)
-    pub maker_traits: String, // MakerTraits encoded as hex string
+    // 1inch LOP Order Compatibility
+    pub salt: String,
+    pub maker_asset: String,
+    pub taker_asset: String,
+    pub making_amount: String,
+    pub taking_amount: String,
+    pub maker_traits: String,
 
-    // Secret Management (Simplified)
-    pub hashlock: String, // bytes32 hashlock (hash of secret)
+    // Secret Management
+    pub hashlock: String,
 
     // State Management
     pub status: OrderStatus,
@@ -29,27 +51,24 @@ pub struct FusionOrder {
     pub accepted_at: Option<u64>,
     pub completed_at: Option<u64>,
 
-    // EIP-712 Support for ETH→ICP orders
-    pub eip712_signature: Option<EIP712Signature>,
-
-    // Legacy fields (backward compatibility)
-    pub from_token: Token,
-    pub to_token: Token,
-    pub from_amount: u64,
-    pub to_amount: u64,
-    pub secret_hash: String,        // Deprecated: use hashlock instead
-    pub timelock_duration: u64,     // Deprecated: use timelocks instead
-    pub safety_deposit_amount: u64, // Deprecated: use safety_deposit instead
+    // 1inch API fields
+    pub signature: String,
+    pub deadline: u64,
+    pub auction_start_date: u64,
+    pub auction_end_date: u64,
+    pub quote_id: String,
+    pub remaining_maker_amount: String,
+    pub maker_balance: String,
+    pub maker_allowance: String,
+    pub is_maker_contract: bool,
+    pub extension: String,
+    pub src_chain_id: u64,
+    pub dst_chain_id: u64,
+    pub secret_hashes: Vec<String>,
+    pub fills: Vec<String>,
 }
 
-/// Supported tokens for cross-chain swaps
-#[derive(Clone, Copy, Debug, CandidType, Deserialize, Serialize, PartialEq)]
-pub enum Token {
-    ICP,
-    ETH,
-}
-
-/// Order status throughout the swap lifecycle
+/// Order status
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize, PartialEq)]
 pub enum OrderStatus {
     Pending,   // Order created, waiting for resolver
@@ -59,22 +78,6 @@ pub enum OrderStatus {
     Cancelled, // Order cancelled
 }
 
-// Removed: Complex Fusion+ state machine - using simple OrderStatus instead
-
-/// EIP-712 signature data for ETH→ICP orders
-#[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
-pub struct EIP712Signature {
-    pub domain_separator: String,
-    pub type_hash: String,
-    pub order_hash: String,
-    pub signature_r: String,
-    pub signature_s: String,
-    pub signature_v: u8,
-    pub signer_address: String,
-}
-
-// Removed: Complex Dutch auction and partial fill structures for MVP simplicity
-
 /// Cross-chain identity linking ETH address to ICP principal
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
 pub struct CrossChainIdentity {
@@ -83,91 +86,39 @@ pub struct CrossChainIdentity {
     pub role: UserRole,
 }
 
-/// User roles in the fusion system
+/// User roles
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize, PartialEq)]
 pub enum UserRole {
     Maker,
     Resolver,
 }
 
-/// Simplified error types for MVP (8 core error types)
+/// Error types (simplified)
 #[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
 pub enum FusionError {
     // Order Management Errors
     OrderNotFound,
     OrderNotPending,
     OrderExpired,
-    OrderNotCancellable,
 
     // Validation Errors
     InvalidAmount,
     InvalidSecretHash,
     InvalidEIP712Signature,
-
-    // Authorization Errors
-    Unauthorized,
+    InvalidSalt,
+    TokenAddressInvalid,
 
     // System Errors
     SystemError,
-
-    // Legacy errors (for backward compatibility)
-    InvalidExpiration,
-    InvalidSecret,
-    InvalidSalt,
-    InvalidMakerTraits,
-    TokenAddressInvalid,
-    NotImplemented,
+    Unauthorized,
 }
 
-/// Order statistics for analytics
-#[derive(Clone, Debug, CandidType, Deserialize, Serialize)]
-pub struct OrderStatistics {
-    pub total_orders: u64,
-    pub pending_orders: u64,
-    pub accepted_orders: u64,
-    pub completed_orders: u64,
-    pub failed_orders: u64,
-    pub cancelled_orders: u64,
-    pub total_icp_volume: u64,
-    pub total_eth_volume: u64,
-}
+// ============================================================================
+// IMPLEMENTATIONS
+// ============================================================================
 
-impl FusionError {
-    pub fn user_message(&self) -> String {
-        match self {
-            // Core Order Management Errors
-            FusionError::OrderNotFound => "Order not found".to_string(),
-            FusionError::OrderNotPending => "Order is not in pending state".to_string(),
-            FusionError::OrderExpired => "Order has expired".to_string(),
-            FusionError::OrderNotCancellable => "Order cannot be cancelled".to_string(),
-
-            // Core Validation Errors
-            FusionError::InvalidAmount => "Invalid amount".to_string(),
-            FusionError::InvalidSecretHash => "Invalid secret hash format".to_string(),
-            FusionError::InvalidEIP712Signature => "Invalid EIP-712 signature".to_string(),
-
-            // Authorization Errors
-            FusionError::Unauthorized => "Unauthorized".to_string(),
-
-            // System Errors
-            FusionError::SystemError => "System error occurred".to_string(),
-
-            // Legacy errors (for backward compatibility)
-            FusionError::InvalidExpiration => "Invalid expiration time".to_string(),
-            FusionError::InvalidSecret => "Invalid secret or hash mismatch".to_string(),
-            FusionError::InvalidSalt => "Invalid salt value".to_string(),
-            FusionError::InvalidMakerTraits => "Invalid maker traits".to_string(),
-            FusionError::TokenAddressInvalid => "Invalid token address".to_string(),
-            FusionError::NotImplemented => "Feature not yet implemented".to_string(),
-        }
-    }
-}
-// Removed: Complex FusionState implementation - using simple OrderStatus instead
-
-// Removed: Complex EIP712Signature validation - keeping simple for MVP
-
-impl FusionOrder {
-    /// Create a new simplified FusionOrder for MVP
+impl Order {
+    /// Create a new Order compatible with 1inch API
     pub fn new(
         id: String,
         maker_eth_address: String,
@@ -175,11 +126,16 @@ impl FusionOrder {
         salt: String,
         maker_asset: String,
         taker_asset: String,
-        making_amount: u64,
-        taking_amount: u64,
+        making_amount: String,
+        taking_amount: String,
         hashlock: String,
+        signature: String,
+        quote_id: String,
+        extension: String,
+        src_chain_id: u64,
+        dst_chain_id: u64,
     ) -> Self {
-        let current_time = 0; // Will be set by caller
+        let current_time = ic_cdk::api::time();
 
         Self {
             // Core Order Data
@@ -189,15 +145,15 @@ impl FusionOrder {
             resolver_eth_address: None,
             resolver_icp_principal: None,
 
-            // 1inch LOP Order Compatibility (Essential Fields Only)
+            // 1inch LOP Order Compatibility
             salt,
             maker_asset: maker_asset.clone(),
             taker_asset: taker_asset.clone(),
-            making_amount,
-            taking_amount,
+            making_amount: making_amount.clone(),
+            taking_amount: taking_amount.clone(),
             maker_traits: "0x".to_string(), // Default empty traits
 
-            // Secret Management (Simplified)
+            // Secret Management
             hashlock: hashlock.clone(),
 
             // State Management
@@ -207,21 +163,21 @@ impl FusionOrder {
             accepted_at: None,
             completed_at: None,
 
-            // EIP-712 Support for ETH→ICP orders
-            eip712_signature: None,
-
-            // Legacy fields (backward compatibility)
-            from_token: Token::ICP, // Default, will be updated based on maker_asset
-            to_token: Token::ETH,   // Default, will be updated based on taker_asset
-            from_amount: making_amount,
-            to_amount: taking_amount,
-            secret_hash: hashlock.clone(),
-            timelock_duration: 3600, // 1 hour default
-            safety_deposit_amount: (making_amount * 5) / 100,
+            // 1inch API fields
+            signature,
+            deadline: current_time + 3600_000_000_000, // 1 hour default
+            auction_start_date: current_time,
+            auction_end_date: current_time + 3600_000_000_000,
+            quote_id,
+            remaining_maker_amount: making_amount.clone(),
+            maker_balance: "0".to_string(), // Will be fetched from chain
+            maker_allowance: "0".to_string(), // Will be fetched from chain
+            is_maker_contract: false,       // Default assumption
+            extension,
+            src_chain_id,
+            dst_chain_id,
+            secret_hashes: vec![hashlock.clone()],
+            fills: vec![],
         }
     }
 }
-// Removed: Complex Dutch auction and partial fill implementations for MVP simplicity
-
-// Removed: Complex FusionOrder methods for Dutch auction and partial fills - keeping simple for MVP
-// Removed: Complex OrderCreationParams - using simple function parameters for MVP

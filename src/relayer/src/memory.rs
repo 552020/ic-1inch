@@ -1,25 +1,25 @@
-use crate::types::{CrossChainIdentity, FusionError, FusionOrder, OrderStatus};
+use crate::types::{CrossChainIdentity, FusionError, Order, OrderStatus};
 use candid::Principal;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
 // Global state using thread_local! for safety
 thread_local! {
-    static FUSION_ORDERS: RefCell<HashMap<String, FusionOrder>> = RefCell::new(HashMap::new());
+    static ORDERS: RefCell<HashMap<String, Order>> = RefCell::new(HashMap::new());
     static CROSS_CHAIN_IDENTITIES: RefCell<HashMap<String, CrossChainIdentity>> = RefCell::new(HashMap::new());
 }
 
-/// Store a fusion order (create or update)
-pub fn store_fusion_order(order: FusionOrder) -> Result<(), FusionError> {
-    FUSION_ORDERS.with(|orders| {
+/// Store an order (create or update)
+pub fn store_order(order: Order) -> Result<(), FusionError> {
+    ORDERS.with(|orders| {
         orders.borrow_mut().insert(order.id.clone(), order);
         Ok(())
     })
 }
 
-/// Update an existing fusion order
-pub fn update_fusion_order(order: FusionOrder) -> Result<(), FusionError> {
-    FUSION_ORDERS.with(|orders| {
+/// Update an existing order
+pub fn update_order(order: Order) -> Result<(), FusionError> {
+    ORDERS.with(|orders| {
         let mut orders_map = orders.borrow_mut();
         if orders_map.contains_key(&order.id) {
             orders_map.insert(order.id.clone(), order);
@@ -30,27 +30,26 @@ pub fn update_fusion_order(order: FusionOrder) -> Result<(), FusionError> {
     })
 }
 
-/// Get a fusion order by ID
-pub fn get_fusion_order(order_id: &str) -> Result<FusionOrder, FusionError> {
-    FUSION_ORDERS
-        .with(|orders| orders.borrow().get(order_id).cloned().ok_or(FusionError::OrderNotFound))
+/// Get an order by ID
+pub fn get_order(order_id: &str) -> Result<Order, FusionError> {
+    ORDERS.with(|orders| orders.borrow().get(order_id).cloned().ok_or(FusionError::OrderNotFound))
 }
 
-/// Get all fusion orders
-pub fn get_all_fusion_orders() -> Vec<FusionOrder> {
-    FUSION_ORDERS.with(|orders| orders.borrow().values().cloned().collect())
+/// Get all orders
+pub fn get_all_orders() -> Vec<Order> {
+    ORDERS.with(|orders| orders.borrow().values().cloned().collect())
 }
 
 /// Get orders by status (for queries)
-pub fn get_orders_by_status(status: OrderStatus) -> Vec<FusionOrder> {
-    FUSION_ORDERS.with(|orders| {
+pub fn get_orders_by_status(status: OrderStatus) -> Vec<Order> {
+    ORDERS.with(|orders| {
         orders.borrow().values().filter(|order| order.status == status).cloned().collect()
     })
 }
 
 /// Get orders by maker principal (for queries)
-pub fn get_orders_by_maker(maker_principal: Principal) -> Vec<FusionOrder> {
-    FUSION_ORDERS.with(|orders| {
+pub fn get_orders_by_maker(maker_principal: Principal) -> Vec<Order> {
+    ORDERS.with(|orders| {
         orders
             .borrow()
             .values()
@@ -61,8 +60,8 @@ pub fn get_orders_by_maker(maker_principal: Principal) -> Vec<FusionOrder> {
 }
 
 /// Get active orders (pending and accepted)
-pub fn get_active_fusion_orders() -> Vec<FusionOrder> {
-    FUSION_ORDERS.with(|orders| {
+pub fn get_active_orders() -> Vec<Order> {
+    ORDERS.with(|orders| {
         orders
             .borrow()
             .values()
@@ -100,10 +99,9 @@ pub fn get_all_cross_chain_identities() -> Vec<CrossChainIdentity> {
 }
 
 /// Serialize relayer state for canister upgrades
-pub fn serialize_relayer_state() -> (Vec<(String, FusionOrder)>, Vec<(String, CrossChainIdentity)>)
-{
-    let orders = FUSION_ORDERS
-        .with(|orders| orders.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+pub fn serialize_relayer_state() -> (Vec<(String, Order)>, Vec<(String, CrossChainIdentity)>) {
+    let orders =
+        ORDERS.with(|orders| orders.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect());
     let identities = CROSS_CHAIN_IDENTITIES.with(|identities| {
         identities.borrow().iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     });
@@ -112,10 +110,10 @@ pub fn serialize_relayer_state() -> (Vec<(String, FusionOrder)>, Vec<(String, Cr
 
 /// Deserialize relayer state after canister upgrades
 pub fn deserialize_relayer_state(
-    orders: Vec<(String, FusionOrder)>,
+    orders: Vec<(String, Order)>,
     identities: Vec<(String, CrossChainIdentity)>,
 ) {
-    FUSION_ORDERS.with(|order_map| {
+    ORDERS.with(|order_map| {
         order_map.borrow_mut().clear();
         for (id, order) in orders {
             order_map.borrow_mut().insert(id, order);
@@ -130,9 +128,9 @@ pub fn deserialize_relayer_state(
     });
 }
 
-/// Clear all fusion data (for testing purposes)
+/// Clear all order data (for testing purposes)
 #[cfg(test)]
-pub fn clear_fusion_data() {
-    FUSION_ORDERS.with(|orders| orders.borrow_mut().clear());
+pub fn clear_order_data() {
+    ORDERS.with(|orders| orders.borrow_mut().clear());
     CROSS_CHAIN_IDENTITIES.with(|identities| identities.borrow_mut().clear());
 }
