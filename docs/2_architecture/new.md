@@ -1,3 +1,16 @@
+Step A: Resolver calls LOP.fillOrderArgs() on EVM
+
+- [x] (eventually via Resolver.deploySrc() utility function but also directly)
+- [x] LOP calls EscrowFactory.\_postInteraction() (hook)
+- [x] Factory calls \_deployEscrow() to create EscrowSrc with MAKER'S ETH (→ goes to resolver)
+- [x] Factory emits SrcEscrowCreated(immutables, immutablesComplement)
+
+- Resolver listens to SrcEscrowCreated event for deployedAt timestamp (on EVM)
+  - Resolver computes srcCancellationTimestamp = deployedAt + timelocks.srcCancellation
+  - Resolver calls escrow_manager.createDstEscrow(dstImmutables, srcCancellationTimestamp)
+  - Resolver deposits RESOLVER'S ICP into ICP escrow (→ goes to maker)
+  - Escrow_manager emits DstEscrowCreated(escrow_address, hashlock, taker)
+
 # Escrow Creation Flow Analysis
 
 ## Issue: Discrepancy Between LOP Architecture and Current Implementation
@@ -99,10 +112,10 @@ The cross-chain-swap implementation **chose** to use `takerInteraction()` only f
 3. Resolver wins auction and executes:
 
    Step A: Resolver calls LOP.fillOrderArgs() on EVM
-   - [x] (eventually via Resolver.deploySrc() utility function but also directly)
-   - [x] LOP calls EscrowFactory._postInteraction() (hook)
-   - [x] Factory calls _deployEscrow() to create EscrowSrc with MAKER'S ETH (→ goes to resolver)
-   - [x] Factory emits SrcEscrowCreated(immutables, immutablesComplement)
+   - (eventually via Resolver.deploySrc() utility function but also directly)
+   - LOP calls EscrowFactory._postInteraction() (hook)
+   - Factory calls _deployEscrow() to create EscrowSrc with MAKER'S ETH (→ goes to resolver)
+   - Factory emits SrcEscrowCreated(immutables, immutablesComplement)
 
    Step B: Resolver calls ICP canister
    - Resolver listens to SrcEscrowCreated event for deployedAt timestamp (on EVM, offchain or via ICP Chain Fusion)
@@ -111,6 +124,15 @@ The cross-chain-swap implementation **chose** to use `takerInteraction()` only f
    - Resolver deposits RESOLVER'S ICP into ICP escrow (→ goes to maker)
    - Escrow_manager emits DstEscrowCreated(escrow_address, hashlock, taker)
 ```
+
+**Key Insights**:
+
+- ✅ **Resolver provides liquidity on both chains**
+- ✅ **All information available from original order** (no EVM dependency)
+- ✅ **Economic model works**: Resolver profits from spread
+- ✅ **Information flow**: Relayer → Resolver → Both chains
+
+**No EVM → ICP information dependency needed!**
 
 **Implementation References:**
 
@@ -181,87 +203,3 @@ Resolver calls deploySrc()
 LOP triggers \_postInteraction() → emits SrcEscrowCreated event
 Resolver listens for this event and extracts timing info
 Resolver computes srcCancellationTimestamp and calls deployDst()
-
----
-
-## Appendix I: SrcEscrowCreated Event Structure
-
-The `SrcEscrowCreated` event is emitted by the `EscrowFactory` when a source escrow is successfully created during the `_postInteraction()` callback triggered by LOP. The resolver listens to this event to extract the `deployedAt` timestamp and escrow parameters (`hashlock`, `dstImmutablesComplement`) needed to call `createDstEscrow()` on the destination chain.
-
-### Event Definition
-
-```solidity
-event SrcEscrowCreated(IBaseEscrow.Immutables srcImmutables, DstImmutablesComplement dstImmutablesComplement);
-```
-
-### Data Structure
-
-1. `srcImmutables` (IBaseEscrow.Immutables):
-
-```solidity
-struct Immutables {
-    bytes32 orderHash;        // Order identifier
-    bytes32 hashlock;         // Hash of the secret (for unlocking)
-    Address maker;            // Address of the maker
-    Address taker;            // Address of the taker (resolver)
-    Address token;            // Source token address
-    uint256 amount;           // Token amount
-    uint256 safetyDeposit;    // Safety deposit amount
-    Timelocks timelocks;      // Custom uint256 type containing all timelock stages and deployedAt
-}
-```
-
-2. `dstImmutablesComplement` (DstImmutablesComplement):
-
-```solidity
-struct DstImmutablesComplement {
-    Address maker;            // Maker address
-    uint256 amount;           // Amount for destination
-    Address token;            // Destination token address
-    uint256 safetyDeposit;    // Safety deposit for destination
-    uint256 chainId;          // Destination chain ID
-}
-```
-
-### JSON Format (ethers.js)
-
-When parsed by ethers.js, the event returns:
-
-```javascript
-{
-  args: {
-    srcImmutables: {
-      orderHash: "0x1234...",
-      hashlock: "0xabcd...",
-      maker: "0x5678...",
-      taker: "0x9abc...",
-      token: "0xdef0...",
-      amount: BigNumber("1000000000000000000"),
-      safetyDeposit: BigNumber("100000000000000000"),
-      timelocks: BigNumber("123456789")  // Custom uint256 containing timelock stages and deployedAt
-    },
-    dstImmutablesComplement: {
-      maker: "0x5678...",
-      amount: BigNumber("2000000000000000000"),
-      token: "0x1234...",
-      safetyDeposit: BigNumber("100000000000000000"),
-      chainId: BigNumber("137")  // e.g., Polygon
-    }
-  },
-  blockNumber: 12345678,
-  transactionHash: "0xfeed...",
-  // ... other event metadata
-}
-```
-
-### **Key for ICP Integration**
-
-- **`timelocks`**: Custom uint256 type containing timelock stages and `deployedAt` timestamp
-- **`hashlock`**: Required for destination escrow creation
-- **`dstImmutablesComplement`**: Contains all destination chain parameters
-
-### **Code References**
-
-- **Event definition**: `cross-chain-swap-fork/contracts/interfaces/IEscrowFactory.sol` lines 43
-- **Immutables struct**: `cross-chain-swap-fork/contracts/interfaces/IBaseEscrow.sol` lines 15-24
-- **Event emission**: `cross-chain-swap-fork/contracts/BaseEscrowFactory.sol` l
